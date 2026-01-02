@@ -1,0 +1,15 @@
+# CardioGuard_AI - Essential Packages (Let pip resolve versions)
+streamlit
+pandas
+numpy
+anthropic
+requests
+python-dotenv
+pydantic
+scipy
+scikit-learn
+reportlab
+loguru
+aiohttp
+pytest
+pinecone

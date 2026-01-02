@@ -1,0 +1,182 @@
+# CardioGuard_AI .gitignore
+
+# ============================================
+# CRITICAL: Environment & Secrets
+# ============================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+
+# ============================================
+# Python
+# ============================================
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+.ENV
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / Packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# ============================================
+# Project-Specific Data & Cache
+# ============================================
+# Data cache (contains downloaded API data)
+data/cache/
+data/reports/
+
+# Logs
+logs/
+*.log
+log/
+
+# Generated reports (keep structure, ignore content)
+data/reports/*.pdf
+!data/reports/.gitkeep
+
+# ============================================
+# IDE & Editor Files
+# ============================================
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Cursor
+.cursor/
+
+# ============================================
+# OS Files
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ============================================
+# Streamlit
+# ============================================
+.streamlit/
+
+# ============================================
+# Temporary Files
+# ============================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+.cache/
+
+# ============================================
+# Database Files
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================
+# Documentation Build
+# ============================================
+docs/_build/
+docs/.doctrees/

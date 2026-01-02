@@ -1,0 +1,17 @@
+# CardioGuard_AI - Free Tools Requirements
+streamlit==1.31.0
+pandas==2.1.4
+numpy==1.24.4
+anthropic==0.18.1
+langchain==0.1.20
+langchain-anthropic==0.1.15
+pinecone-client==3.0.0
+requests==2.31.0
+python-dotenv==1.0.0
+pydantic==2.5.3
+scipy==1.11.4
+scikit-learn==1.3.2
+reportlab==4.0.9
+loguru==0.7.2
+aiohttp==3.9.3
+pytest==7.4.4
