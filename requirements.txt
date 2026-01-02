@@ -13,3 +13,5 @@ loguru
 aiohttp
 pytest
 pinecone
+duckduckgo-search
+beautifulsoup4

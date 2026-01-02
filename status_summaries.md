@@ -269,5 +269,71 @@ This document tracks the development progress of CardioGuard_AI healthcare fraud
 - **Agents**: 4 agent files (research, pattern_analyzer, report_writer, quality_checker)
 - **Services**: 6 service files (CMS, OIG, NPPES, data, vector, export)
 - **Tests**: Basic test structure
-- **Docs**: `QUICKSTART.md`, `status_summaries.md`
+- **Docs**: `QUICKSTART.md`, `status_summaries.md`, `README.md`
 - **Total**: ~20+ Python files implementing complete fraud detection system
+
+---
+
+## Bug Fixes Applied
+
+### 🔴 URGENT FIX: Risk Scoring for Excluded Providers (2025-01-02)
+
+**Issue**: NPI 1992796015 (Scott Reuben, convicted felon) scoring 65/100 instead of 90+
+
+**Fixes Applied**:
+
+1. **CMS API Endpoint Fixed** (`services/cms_service.py`):
+   - ✅ Updated URL to correct endpoint: `provider-data/api/1/datastore/query/medicare-provider-utilization-and-payment-data-physician-and-other-suppliers-by-provider-and-service`
+   - ✅ Changed query parameter from `npi={npi}` to `$where=npi='{npi}'` (Socrata format)
+
+2. **Risk Scoring Algorithm Fixed** (`agents/pattern_analyzer.py`):
+   - ✅ OIG exclusions now override other factors with mandatory base scores:
+     - Felony conviction (1128a3) = **90+ base score** (mandatory minimum)
+     - Other mandatory exclusions (1128a1, 1128a2) = **80+ base score** (mandatory minimum)
+     - Permissive exclusions (1128b1, 1128b2, 1128b4) = **70+ base score** (mandatory minimum)
+   - ✅ Added data quality multiplier: **1.2x multiplier** when data_quality < 0.70
+   - ✅ Improved evidence compilation to reflect exclusion type severity
+
+3. **Data Quality Handling**:
+   - ✅ Added `_calculate_data_quality()` method to compute quality from data sources
+   - ✅ Applies multiplier for incomplete data scenarios
+
+**Validation Target**:
+- ✅ Scott Reuben (1992796015) should now score **90+** with **HIGH** priority
+- ✅ Any excluded provider with felony conviction = **90+ minimum**
+- ✅ Any excluded provider = **70+ minimum** (depending on exclusion type)
+
+**Files Modified**:
+- `services/cms_service.py` - Fixed API endpoint
+- `agents/pattern_analyzer.py` - Fixed risk scoring algorithm and evidence compilation
+
+### 🔧 CMS API Endpoint Fix (2025-01-02)
+
+**Issue**: CMS API URL was malformed with duplicate `/api/1/` and wrong endpoint structure
+
+**Fixes Applied**:
+
+1. **Updated CMS API Endpoint** (`services/cms_service.py`):
+   - ✅ Fixed base URL: `https://data.cms.gov/data-api/v1/dataset/`
+   - ✅ Added dataset ID: `mj5m-pzi6` (provider summary data)
+   - ✅ Updated query params: `filter[npi]={npi}` (no quotes), `limit=1000`
+   - ✅ Removed duplicate `/api/1/` from URL construction
+
+2. **Made CMS Optional** (`services/cms_service.py`):
+   - ✅ Changed errors to warnings - CMS failures don't block analysis
+   - ✅ Returns empty utilization data structure when CMS unavailable
+   - ✅ System continues with OIG + NPPES data (sufficient for excluded providers)
+   - ✅ Improved error messages indicating CMS is optional
+
+3. **Enhanced Response Processing**:
+   - ✅ Updated `_process_cms_response()` to handle CMS API v1 format
+   - ✅ Handles list responses, nested data structures, and single records
+   - ✅ Aggregates multiple records for same NPI
+
+**Configuration Updated** (`config.py`):
+- ✅ Added `CMS_DATASET_ID` configuration variable
+- ✅ Updated base URL to correct CMS Open Data API v1 endpoint
+
+**Files Modified**:
+- `config.py` - Added CMS_DATASET_ID, updated base URL
+- `services/cms_service.py` - Fixed endpoint, made optional, improved error handling

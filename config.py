@@ -26,7 +26,8 @@ PREFERRED_MODEL = os.getenv("PREFERRED_MODEL", "claude-3-haiku-20240307")
 MAX_TOKENS_PER_REQUEST = int(os.getenv("MAX_TOKENS_PER_REQUEST", "1000"))
 
 # Data Sources Configuration
-CMS_API_BASE_URL = os.getenv("CMS_API_BASE_URL", "https://data.cms.gov/api/1/")
+CMS_API_BASE_URL = os.getenv("CMS_API_BASE_URL", "https://data.cms.gov/data-api/v1/dataset/")
+CMS_DATASET_ID = os.getenv("CMS_DATASET_ID", "mj5m-pzi6")  # Provider summary dataset
 OIG_EXCLUSIONS_URL = os.getenv(
     "OIG_EXCLUSIONS_URL",
     "https://oig.hhs.gov/exclusions/downloadables/UPDATED.csv"
@@ -40,6 +41,14 @@ NPPES_API_URL = os.getenv(
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 CACHE_DURATION_HOURS = int(os.getenv("CACHE_DURATION_HOURS", "24"))
 STREAMLIT_PORT = int(os.getenv("STREAMLIT_PORT", "8501"))
+
+# Web Search Configuration
+WEB_SEARCH_ENABLED = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
+WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "duckduckgo")  # duckduckgo, google, serpapi
+GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "")
+GOOGLE_SEARCH_ENGINE_ID = os.getenv("GOOGLE_SEARCH_ENGINE_ID", "")
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
+WEB_SEARCH_CACHE_DURATION = 30 * 24 * 3600  # 30 days in seconds
 
 # Cache Configuration
 CACHE_DIR = PROJECT_ROOT / "data" / "cache"

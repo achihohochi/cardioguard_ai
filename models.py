@@ -74,6 +74,25 @@ class ExclusionData(BaseModel):
     state: Optional[str] = None
 
 
+class LegalInformation(BaseModel):
+    """Legal/court information from web search."""
+    case_type: str = Field(..., description="Type of case: conviction, lawsuit, allegation, pending")
+    status: str = Field(..., description="Status: convicted, pending, settled, dismissed")
+    date: Optional[str] = Field(None, description="Date of case/conviction if available")
+    description: str = Field(..., description="Description of the legal case")
+    source_url: str = Field(..., description="URL of the source")
+    relevance_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Relevance score (0.0-1.0)"
+    )
+    verified: bool = Field(
+        default=False,
+        description="True if from official court/government source"
+    )
+
+
 class ProviderProfile(BaseModel):
     """Comprehensive provider profile combining all data sources."""
     npi: str = Field(..., description="National Provider Identifier")
@@ -88,8 +107,12 @@ class ProviderProfile(BaseModel):
     certification_date: Optional[str] = None
     risk_factors: List[str] = Field(default_factory=list)
     risk_score: float = Field(default=0.0, ge=0.0, le=100.0)
+    legal_information: List[LegalInformation] = Field(
+        default_factory=list,
+        description="Legal/court information from web search"
+    )
     data_sources: Dict[str, bool] = Field(
-        default_factory=lambda: {"cms": False, "oig": False, "nppes": False}
+        default_factory=lambda: {"cms": False, "oig": False, "nppes": False, "web_search": False}
     )
     collected_at: datetime = Field(default_factory=datetime.now)
     

@@ -8,6 +8,8 @@ from .oig_service import OIGDataService
 from .nppes_service import NPPESDataService
 from .data_service import DataService
 from .export_service import ExportService
+from .web_search_service import WebSearchService
+from .legal_parser_service import LegalParserService
 
 # Pinecone is optional - import may fail if old package is installed
 try:
@@ -21,6 +23,8 @@ __all__ = [
     "NPPESDataService",
     "DataService",
     "ExportService",
+    "WebSearchService",
+    "LegalParserService",
 ]
 
 # Add VectorService only if available

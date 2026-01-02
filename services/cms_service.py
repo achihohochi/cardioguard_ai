@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import CMS_API_BASE_URL, CMS_CACHE_DURATION, CACHE_DIR
+from config import CMS_API_BASE_URL, CMS_DATASET_ID, CMS_CACHE_DURATION, CACHE_DIR
 
 
 class CMSDataService:
@@ -67,15 +67,15 @@ class CMSDataService:
         try:
             session = await self._get_session()
             
-            # Note: CMS API endpoint structure may vary
-            # This is a placeholder - actual endpoint needs to be determined
-            # Based on CMS Open Data portal structure
-            url = f"{self.base_url}datastore/rest/filter"
+            # CMS Open Data API v1 endpoint
+            # Base URL: https://data.cms.gov/data-api/v1/dataset/
+            # Dataset ID: mj5m-pzi6 (provider summary data)
+            url = f"{self.base_url}{CMS_DATASET_ID}/data"
             
-            # CMS uses Socrata API format
+            # CMS API v1 uses filter[npi] format (no quotes around NPI value)
             params = {
-                "npi": npi,
-                "$limit": 1000
+                f"filter[npi]": npi,
+                "limit": 1000
             }
             
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
@@ -92,30 +92,87 @@ class CMSDataService:
                     
                     return processed_data
                 else:
-                    error_msg = f"CMS API error: {response.status}"
-                    logger.error(error_msg)
-                    return {"error": error_msg}
+                    # CMS is optional - log warning instead of error
+                    # System works with just OIG + NPPES for excluded providers
+                    warning_msg = f"CMS API returned status {response.status} - CMS data unavailable (optional)"
+                    logger.warning(warning_msg)
+                    return {
+                        "error": warning_msg,
+                        "total_services": 0,
+                        "unique_beneficiaries": 0,
+                        "total_charges": 0.0,
+                        "total_payments": 0.0,
+                        "provider_type": "Unknown",
+                        "medicare_participation": "Unknown",
+                        "npi": npi
+                    }
                     
         except asyncio.TimeoutError:
-            error_msg = "CMS API timeout"
-            logger.error(error_msg)
-            return {"error": error_msg}
+            # CMS is optional - log warning instead of error
+            warning_msg = "CMS API timeout - CMS data unavailable (optional, system continues with OIG + NPPES)"
+            logger.warning(warning_msg)
+            return {
+                "error": warning_msg,
+                "total_services": 0,
+                "unique_beneficiaries": 0,
+                "total_charges": 0.0,
+                "total_payments": 0.0,
+                "provider_type": "Unknown",
+                "medicare_participation": "Unknown",
+                "npi": npi
+            }
         except Exception as e:
-            error_msg = f"CMS connection failed: {str(e)}"
-            logger.error(error_msg)
-            return {"error": error_msg}
+            # CMS is optional - log warning instead of error
+            warning_msg = f"CMS connection failed: {str(e)} - CMS data unavailable (optional, system continues with OIG + NPPES)"
+            logger.warning(warning_msg)
+            return {
+                "error": warning_msg,
+                "total_services": 0,
+                "unique_beneficiaries": 0,
+                "total_charges": 0.0,
+                "total_payments": 0.0,
+                "provider_type": "Unknown",
+                "medicare_participation": "Unknown",
+                "npi": npi
+            }
     
     def _process_cms_response(self, raw_data: Dict, npi: str) -> Dict:
         """Process CMS API response into standardized format."""
-        # Handle different CMS API response formats
-        if isinstance(raw_data, list) and len(raw_data) > 0:
-            provider_data = raw_data[0]
-        elif isinstance(raw_data, dict) and 'data' in raw_data:
-            provider_data = raw_data['data'][0] if raw_data['data'] else {}
+        # Handle CMS Open Data API v1 response format
+        # Response can be: list of records, or dict with 'data' key, or single record dict
+        
+        provider_data = {}
+        
+        if isinstance(raw_data, list):
+            # API returns list of records - aggregate if multiple
+            if len(raw_data) > 0:
+                # Aggregate multiple records for same NPI
+                total_services = sum(int(r.get('line_srvc_cnt', r.get('total_services', 0))) for r in raw_data)
+                total_beneficiaries = sum(int(r.get('bene_unique_cnt', r.get('unique_beneficiaries', 0))) for r in raw_data)
+                total_charges = sum(float(r.get('total_sbmtd_chrg', r.get('total_charges', 0.0))) for r in raw_data)
+                total_payments = sum(float(r.get('total_medicare_payment_amt', r.get('total_payments', 0.0))) for r in raw_data)
+                
+                # Use first record for metadata
+                provider_data = raw_data[0].copy()
+                provider_data['line_srvc_cnt'] = total_services
+                provider_data['bene_unique_cnt'] = total_beneficiaries
+                provider_data['total_sbmtd_chrg'] = total_charges
+                provider_data['total_medicare_payment_amt'] = total_payments
+            else:
+                return {"error": f"No CMS data found for NPI {npi}"}
         elif isinstance(raw_data, dict):
-            provider_data = raw_data
+            if 'data' in raw_data:
+                # Nested data structure
+                data_list = raw_data['data']
+                if isinstance(data_list, list) and len(data_list) > 0:
+                    provider_data = data_list[0]
+                else:
+                    return {"error": f"No CMS data found for NPI {npi}"}
+            else:
+                # Single record dict
+                provider_data = raw_data
         else:
-            return {"error": f"No CMS data found for NPI {npi}"}
+            return {"error": f"Unexpected CMS API response format for NPI {npi}"}
         
         # Extract key utilization metrics with fallbacks for different field names
         return {

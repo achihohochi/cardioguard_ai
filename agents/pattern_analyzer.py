@@ -160,40 +160,120 @@ class PatternAnalyzer(BaseAgent):
         return patterns
     
     def calculate_risk_score(self, anomalies: Dict[str, Any], evidence: List[FraudEvidence], provider: ProviderProfile) -> int:
-        """Calculate composite risk score (0-100)."""
+        """Calculate composite risk score (0-100) with OIG exclusions prioritized."""
         base_score = 0
         
-        # Exclusion status (high weight)
+        # CRITICAL: OIG exclusions override other factors and set minimum base scores
         if provider.exclusion_data.excluded:
-            base_score += 50
+            exclusion_type = provider.exclusion_data.exclusion_type or ""
+            
+            # Felony conviction (1128a3) = mandatory 90+ base score
+            if exclusion_type == "1128a3":
+                base_score = 90
+                logger.warning(f"Felony conviction exclusion detected for NPI {provider.npi}: Setting base score to 90")
+            
+            # Other mandatory exclusions (1128a1, 1128a2) = mandatory 80+ base score
+            elif exclusion_type in ["1128a1", "1128a2"]:
+                base_score = 80
+                logger.warning(f"Mandatory exclusion detected for NPI {provider.npi}: Setting base score to 80")
+            
+            # Permissive exclusions (1128b1, 1128b2, 1128b4) = mandatory 70+ base score
+            elif exclusion_type in ["1128b1", "1128b2", "1128b4"]:
+                base_score = 70
+                logger.info(f"Permissive exclusion detected for NPI {provider.npi}: Setting base score to 70")
+            
+            # Unknown exclusion type = default 75 base score
+            else:
+                base_score = 75
+                logger.warning(f"Unknown exclusion type '{exclusion_type}' for NPI {provider.npi}: Setting base score to 75")
         
-        # Statistical anomalies (weighted by severity)
-        anomaly_scores = []
-        for metric_name, anomaly_data in anomalies.items():
-            z_score = abs(anomaly_data.get('z_score', 0))
-            if z_score > self.anomaly_threshold:
-                # Score increases with z-score magnitude
-                score = min(30, (z_score - self.anomaly_threshold) * 10)
-                anomaly_scores.append(score)
+        # If no exclusion, calculate score from anomalies and evidence
+        else:
+            # Statistical anomalies (weighted by severity)
+            anomaly_scores = []
+            for metric_name, anomaly_data in anomalies.items():
+                z_score = abs(anomaly_data.get('z_score', 0))
+                if z_score > self.anomaly_threshold:
+                    # Score increases with z-score magnitude
+                    score = min(30, (z_score - self.anomaly_threshold) * 10)
+                    anomaly_scores.append(score)
+            
+            if anomaly_scores:
+                base_score += max(anomaly_scores)  # Use highest anomaly score
+            
+            # Evidence-based scoring
+            high_severity_evidence = sum(1 for e in evidence if e.severity == 'high')
+            medium_severity_evidence = sum(1 for e in evidence if e.severity == 'medium')
+            
+            base_score += high_severity_evidence * 10
+            base_score += medium_severity_evidence * 5
         
-        if anomaly_scores:
-            base_score += max(anomaly_scores)  # Use highest anomaly score
+        # Legal information scoring (applies to all providers, including excluded ones)
+        if provider.legal_information:
+            legal_scores = []
+            for legal_info in provider.legal_information:
+                if legal_info.case_type == "conviction":
+                    legal_scores.append(20)  # Conviction = high risk
+                elif legal_info.case_type == "lawsuit":
+                    if legal_info.status == "pending":
+                        legal_scores.append(15)  # Pending lawsuit = medium-high risk
+                    elif legal_info.status == "settled":
+                        legal_scores.append(10)  # Settlement = medium risk
+                    else:
+                        legal_scores.append(12)  # Other lawsuit status
+                elif legal_info.case_type == "allegation":
+                    legal_scores.append(10)  # Allegation = medium risk
+                elif legal_info.case_type == "pending":
+                    legal_scores.append(15)  # Pending case = medium-high risk
+            
+            if legal_scores:
+                # Use highest legal score, then add 5 for each additional legal issue
+                base_score += max(legal_scores)
+                if len(legal_scores) > 1:
+                    base_score += min(10, (len(legal_scores) - 1) * 5)  # Max +10 for multiple issues
         
-        # Evidence-based scoring
-        high_severity_evidence = sum(1 for e in evidence if e.severity == 'high')
-        medium_severity_evidence = sum(1 for e in evidence if e.severity == 'medium')
+        # Calculate data quality score from data sources
+        data_quality = self._calculate_data_quality(provider)
         
-        base_score += high_severity_evidence * 10
-        base_score += medium_severity_evidence * 5
+        # Apply data quality multiplier if quality is low (< 0.70)
+        if data_quality < 0.70:
+            multiplier = 1.2
+            base_score = int(base_score * multiplier)
+            logger.warning(f"Low data quality ({data_quality:.2f}) for NPI {provider.npi}: Applying 1.2x multiplier")
         
-        # Data quality penalty
-        if not all(provider.data_sources.values()):
-            base_score += 5  # Small penalty for incomplete data
+        # Ensure excluded providers meet minimum thresholds
+        if provider.exclusion_data.excluded:
+            exclusion_type = provider.exclusion_data.exclusion_type or ""
+            if exclusion_type == "1128a3" and base_score < 90:
+                base_score = 90
+            elif exclusion_type in ["1128a1", "1128a2"] and base_score < 80:
+                base_score = 80
+            elif exclusion_type in ["1128b1", "1128b2", "1128b4"] and base_score < 70:
+                base_score = 70
+            elif base_score < 75:  # Unknown exclusion type minimum
+                base_score = 75
         
         # Cap at 100
         risk_score = min(100, int(base_score))
         
         return risk_score
+    
+    def _calculate_data_quality(self, provider: ProviderProfile) -> float:
+        """Calculate data quality score from data sources (0.0-1.0)."""
+        quality_score = 0.0
+        
+        if provider.data_sources.get('cms', False):
+            quality_score += 0.4
+        elif provider.utilization_data.total_services == 0:
+            quality_score += 0.2  # Partial credit if no CMS data but not an error
+        
+        if provider.data_sources.get('oig', False):
+            quality_score += 0.3
+        
+        if provider.data_sources.get('nppes', False):
+            quality_score += 0.3
+        
+        return quality_score
     
     def _determine_priority(self, risk_score: int) -> str:
         """Determine priority level based on risk score."""
@@ -209,15 +289,31 @@ class PatternAnalyzer(BaseAgent):
         """Compile fraud evidence from all analysis sources."""
         evidence = []
         
-        # Exclusion evidence
+        # Exclusion evidence - severity based on exclusion type
         if provider.exclusion_data.excluded:
+            exclusion_type = provider.exclusion_data.exclusion_type or ""
+            
+            # Determine severity based on exclusion type
+            if exclusion_type == "1128a3":
+                severity = "high"
+                description = f"CRITICAL: Provider excluded due to felony conviction - {provider.exclusion_data.exclusion_description}"
+            elif exclusion_type in ["1128a1", "1128a2"]:
+                severity = "high"
+                description = f"MANDATORY EXCLUSION: {provider.exclusion_data.exclusion_description}"
+            elif exclusion_type in ["1128b1", "1128b2", "1128b4"]:
+                severity = "medium"
+                description = f"Permissive exclusion: {provider.exclusion_data.exclusion_description}"
+            else:
+                severity = "high"
+                description = f"Provider excluded from Medicare/Medicaid: {provider.exclusion_data.exclusion_description}"
+            
             evidence.append(FraudEvidence(
                 evidence_type="oig_exclusion",
-                description=f"Provider is excluded from Medicare/Medicaid: {provider.exclusion_data.exclusion_description}",
+                description=description,
                 statistical_significance=1.0,
                 data_source="OIG",
                 regulatory_citation="42 CFR §1001.101",
-                severity="high"
+                severity=severity
             ))
         
         # Statistical anomaly evidence
@@ -259,5 +355,17 @@ class PatternAnalyzer(BaseAgent):
                     data_source="NPPES",
                     severity="low"
                 ))
+        
+        # Legal information evidence
+        for legal_info in provider.legal_information:
+            severity = "high" if legal_info.case_type == "conviction" else "medium"
+            evidence.append(FraudEvidence(
+                evidence_type=f"legal_{legal_info.case_type}",
+                description=f"{legal_info.case_type.title()} ({legal_info.status}): {legal_info.description}",
+                statistical_significance=legal_info.relevance_score,
+                data_source="Web Search",
+                regulatory_citation="Public court records" if legal_info.verified else "Public records",
+                severity=severity
+            ))
         
         return evidence

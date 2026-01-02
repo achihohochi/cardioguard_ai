@@ -31,17 +31,18 @@ class ResearchAgent(BaseAgent):
             if not npi or not npi.isdigit() or len(npi) != 10:
                 raise ValueError(f"Invalid NPI format: {npi}. Must be exactly 10 digits.")
             
-            # Collect data from all sources in parallel
+            # Collect data from all sources in parallel (web search included)
             all_data = await self.data_service.collect_all_sources(npi)
             
             # Extract individual source data
             cms_data = all_data.get('cms', {})
             oig_data = all_data.get('oig', {})
             nppes_data = all_data.get('nppes', {})
+            web_search_data = all_data.get('web_search', {})
             
             # Fuse data into unified provider profile
             provider_profile = self.data_service.fuse_data_sources(
-                cms_data, oig_data, nppes_data
+                cms_data, oig_data, nppes_data, web_search_data
             )
             
             # Identify initial risk factors
@@ -78,6 +79,11 @@ class ResearchAgent(BaseAgent):
         # Check charge-to-payment ratio
         if utilization.charge_to_payment_ratio > 2.0:  # High ratio may indicate upcoding
             risk_factors.append(f"High charge-to-payment ratio: {utilization.charge_to_payment_ratio:.2f}")
+        
+        # Check legal information
+        if profile.legal_information:
+            for legal_info in profile.legal_information[:3]:  # Top 3 legal issues
+                risk_factors.append(f"Legal: {legal_info.case_type} - {legal_info.status}")
         
         # Check data quality
         if not all(profile.data_sources.values()):
