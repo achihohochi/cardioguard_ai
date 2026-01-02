@@ -337,3 +337,105 @@ This document tracks the development progress of CardioGuard_AI healthcare fraud
 **Files Modified**:
 - `config.py` - Added CMS_DATASET_ID, updated base URL
 - `services/cms_service.py` - Fixed endpoint, made optional, improved error handling
+
+### 🌐 Web Search Legal Information Feature (2025-01-02)
+
+**Feature Overview**: Added web search capability to discover legal/court information about providers that may not be in OIG database yet (pending cases, recent convictions, allegations).
+
+**Implementation Details**:
+
+1. **Web Search Service** (`services/web_search_service.py`):
+   - ✅ DuckDuckGo integration (free, no API key required)
+   - ✅ Search by provider name (full/partial) and NPI
+   - ✅ Multiple search query strategies (name + legal keywords, NPI + legal keywords)
+   - ✅ Result caching (30 days)
+   - ✅ Rate limiting and error handling
+   - ✅ Graceful degradation (optional data source)
+
+2. **Legal Parser Service** (`services/legal_parser_service.py`):
+   - ✅ Parses search results to extract legal information
+   - ✅ Classifies case types: conviction, lawsuit, allegation, pending
+   - ✅ Calculates relevance scores (0.0-1.0) based on name/NPI match, official sources, recency
+   - ✅ Deduplicates results
+   - ✅ Identifies official court/government sources
+
+3. **Data Model Updates** (`models.py`):
+   - ✅ Added `LegalInformation` model with fields: case_type, status, date, description, source_url, relevance_score, verified
+   - ✅ Updated `ProviderProfile` to include `legal_information` list
+   - ✅ Updated `data_sources` dict to include `web_search: bool`
+   - ✅ Added `url` field to `FraudEvidence` for source URLs
+   - ✅ Updated `InvestigationReport` to include `data_sources` field
+
+4. **Data Service Integration** (`services/data_service.py`):
+   - ✅ Integrated web search into parallel data collection
+   - ✅ Fixed async bug (variable name mismatch: nppes_data_task vs nppes_task)
+   - ✅ Proper async flow: await NPPES first, then parallel CMS/OIG/web search
+   - ✅ Updated `fuse_data_sources()` to parse legal information
+   - ✅ Updated data quality assessment to include web search
+
+5. **Risk Scoring Integration** (`agents/pattern_analyzer.py`):
+   - ✅ Legal information risk additions:
+     - Conviction: +20 to risk score
+     - Pending lawsuit: +15 to risk score
+     - Settlement: +10 to risk score
+     - Allegation: +10 to risk score
+     - Multiple legal issues: Additional +5 per additional issue
+   - ✅ Legal evidence added to evidence compilation with source URLs
+   - ✅ High severity assigned to convictions, medium to other legal cases
+
+6. **Research Agent Updates** (`agents/research_agent.py`):
+   - ✅ Updated to pass web search data to fusion
+   - ✅ Added legal information to risk factors identification
+
+7. **UI Updates** (`app.py`):
+   - ✅ Added web search to sidebar "About" section
+   - ✅ Added web search to "Quick Info" data sources list
+   - ✅ Added Data Sources Status section showing CMS, OIG, NPPES, Web Search status
+   - ✅ Added clickable URL links in Evidence Summary for web search sources
+   - ✅ URLs displayed as markdown links: `[URL](URL)`
+
+8. **Configuration** (`config.py`):
+   - ✅ Added `WEB_SEARCH_ENABLED` (default: true)
+   - ✅ Added `WEB_SEARCH_PROVIDER` (default: duckduckgo)
+   - ✅ Added `WEB_SEARCH_CACHE_DURATION` (30 days)
+   - ✅ Added optional Google/SERP API keys for future use
+
+9. **Dependencies** (`requirements.txt`):
+   - ✅ Added `duckduckgo-search` (free web search)
+   - ✅ Added `beautifulsoup4` (HTML parsing)
+
+10. **Testing** (`tests/test_web_search.py`):
+    - ✅ Basic web search service tests
+    - ✅ Legal parser tests
+    - ✅ Relevance scoring tests
+    - ✅ Case classification tests
+
+**Risk Scoring Impact**:
+- Provider with felony conviction (OIG): 90 base score
+- Web search finds additional pending lawsuit: +15 = 100 (capped)
+- Provider with no OIG exclusion but pending lawsuit: 15-30 base + 15 = 30-45 (medium risk)
+
+**Performance Impact**:
+- Additional time: +5-10 seconds per analysis (web search is slow)
+- Caching reduces repeat searches significantly
+- Parallel execution minimizes impact
+- Total workflow: Still under 30 seconds with caching
+
+**Cost**: Free (using DuckDuckGo, no API costs)
+
+**Files Created**:
+- `services/web_search_service.py` - Web search integration
+- `services/legal_parser_service.py` - Legal information parser
+- `tests/test_web_search.py` - Web search tests
+- `PROJECT_STATE.md` - Project status documentation
+
+**Files Modified**:
+- `models.py` - Added LegalInformation model, updated ProviderProfile and FraudEvidence
+- `services/data_service.py` - Integrated web search, fixed async bug
+- `agents/pattern_analyzer.py` - Added legal info to risk scoring and evidence
+- `agents/research_agent.py` - Added legal info to risk factors
+- `agents/report_writer.py` - Include data_sources in report
+- `app.py` - UI updates for web search display
+- `config.py` - Web search configuration
+- `requirements.txt` - Added dependencies
+- `services/__init__.py` - Added new service exports

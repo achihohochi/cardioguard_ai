@@ -3,10 +3,10 @@
 Last updated: 2025-01-02
 Owner: chiho
 Current branch: main
-Last known good commit: e243578 (Add README.md, .gitignore, and directory structure files)
+Last known good commit: a3d88e3 (Add web search legal information feature and fix async data collection bug)
 
 ## 0) TL;DR (60 seconds)
-**What this repo does:** Healthcare fraud detection system that analyzes provider NPIs to generate fraud risk scores (0-100) with evidence-based investigation reports in ~30 seconds using CMS, OIG, and NPPES data sources.
+**What this repo does:** Healthcare fraud detection system that analyzes provider NPIs to generate fraud risk scores (0-100) with evidence-based investigation reports in ~30 seconds using CMS, OIG, NPPES, and web search (legal/court records) data sources.
 
 **Phase 1 goal:** Complete working fraud detection system with multi-agent architecture, Streamlit UI, and PDF report generation. System must correctly identify excluded providers (especially felony convictions) with risk scores 90+.
 
@@ -19,12 +19,17 @@ Last known good commit: e243578 (Add README.md, .gitignore, and directory struct
 ### Phase 1 (baseline) ✅
 - ✅ Multi-agent architecture (Research → Pattern Analyzer → Report Writer → Quality Checker)
 - ✅ CMS, OIG, NPPES API integrations with parallel data collection
+- ✅ Web search integration for legal/court records (DuckDuckGo, free tier)
 - ✅ Risk scoring algorithm with OIG exclusion prioritization (felony = 90+, mandatory = 80+, permissive = 70+)
+- ✅ Legal information risk scoring (convictions +20, pending lawsuits +15, allegations +10)
 - ✅ Streamlit UI for provider NPI input and results display
+- ✅ Data sources status display (CMS, OIG, NPPES, Web Search)
+- ✅ Evidence summary with clickable URLs for web search sources
 - ✅ PDF report generation with evidence summaries and recommendations
 - ✅ CMS API endpoint fixed (using correct CMS Open Data API v1)
 - ✅ Risk scoring correctly identifies excluded providers (tested with NPI 1992796015)
 - ✅ CMS failures handled gracefully (system works with OIG + NPPES alone)
+- ✅ Async data collection bug fixed (variable name mismatch resolved)
 - ✅ Configuration management with .env file
 - ✅ .gitignore protecting sensitive API keys
 
@@ -73,14 +78,18 @@ streamlit run app.py
 
 ### Verified functionality
 - ✅ Provider NPI input validation (10 digits)
-- ✅ Parallel data collection from CMS, OIG, NPPES
+- ✅ Parallel data collection from CMS, OIG, NPPES, Web Search
 - ✅ OIG exclusion detection (felony convictions, mandatory/permissive exclusions)
-- ✅ Risk score calculation (0-100 scale)
-- ✅ Evidence compilation with severity levels
+- ✅ Web search for legal/court records (convictions, lawsuits, allegations)
+- ✅ Legal information parsing and relevance scoring
+- ✅ Risk score calculation (0-100 scale) with legal information integration
+- ✅ Evidence compilation with severity levels and source URLs
+- ✅ Data sources status display in UI
 - ✅ Executive summary generation (Claude Haiku)
 - ✅ PDF report export
 - ✅ Error handling for missing/invalid data
 - ✅ CMS API failures handled gracefully (continues with OIG + NPPES)
+- ✅ Web search failures handled gracefully (optional data source)
 
 ### Known limitations
 - CMS API endpoint may need adjustment based on actual CMS API response format
@@ -96,8 +105,8 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 ```
 
 **Data Flow:**
-1. Research Agent collects from CMS, OIG, NPPES (parallel async)
-2. Pattern Analyzer detects anomalies, calculates risk score
+1. Research Agent collects from CMS, OIG, NPPES, Web Search (parallel async)
+2. Pattern Analyzer detects anomalies, calculates risk score (includes legal information)
 3. Report Writer generates executive summary and recommendations
 4. Quality Checker validates report completeness
 5. Export Service generates PDF report
@@ -106,19 +115,36 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 - `app.py` - Streamlit UI entry point
 - `workflow.py` - Agent orchestration
 - `agents/` - 4 agent modules (research, pattern_analyzer, report_writer, quality_checker)
-- `services/` - 6 service modules (CMS, OIG, NPPES, data, vector, export)
-- `models.py` - Pydantic data models
+- `services/` - 8 service modules (CMS, OIG, NPPES, data, vector, export, web_search, legal_parser)
+- `models.py` - Pydantic data models (includes LegalInformation)
 - `config.py` - Configuration management
 
 ## 4) Recent changes
 
+**2025-01-02: Web Search Legal Information Feature**
+- Added WebSearchService for searching legal/court records (DuckDuckGo integration)
+- Added LegalParserService to parse and classify legal information (convictions, lawsuits, allegations)
+- Integrated web search into parallel data collection workflow
+- Added LegalInformation model to ProviderProfile
+- Updated risk scoring to include legal information (+20 convictions, +15 pending lawsuits, +10 allegations)
+- Added legal evidence to FraudEvidence with source URLs
+- Updated Streamlit UI to show web search in data sources
+- Added data sources status display (CMS, OIG, NPPES, Web Search)
+- Added clickable URL links in evidence summary for web search sources
+- Made web search optional with graceful error handling
+- Added web search configuration to config.py
+- Added duckduckgo-search and beautifulsoup4 to requirements.txt
+- Created test_web_search.py with basic tests
+
 **2025-01-02: Critical Bug Fixes**
+- Fixed async data collection bug (variable name mismatch: nppes_data_task vs nppes_task)
 - Fixed CMS API endpoint (removed duplicate `/api/1/`, using correct CMS Open Data API v1)
 - Fixed risk scoring algorithm to prioritize OIG exclusions (felony = 90+ mandatory)
 - Made CMS optional (system works with OIG + NPPES alone)
 - Enhanced error handling and logging
 
 **2025-01-02: Documentation & Setup**
+- Created PROJECT_STATE.md for project status tracking
 - Created README.md for end users
 - Created .gitignore to protect API keys
 - Created QUICKSTART.md and RUN_GUIDE.md
@@ -148,6 +174,8 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 - pandas, numpy - Data processing
 - pydantic - Data validation
 - aiohttp - Async HTTP requests
+- duckduckgo-search - Free web search (legal records)
+- beautifulsoup4 - HTML parsing for search results
 
 **Optional:**
 - pinecone - Vector database (optional)
@@ -166,6 +194,8 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 - `PINECONE_ENVIRONMENT` - Pinecone environment
 - `CMS_API_BASE_URL` - CMS API base URL (has default)
 - `CMS_DATASET_ID` - CMS dataset ID (has default: mj5m-pzi6)
+- `WEB_SEARCH_ENABLED` - Enable web search (default: true)
+- `WEB_SEARCH_PROVIDER` - Search provider (default: duckduckgo)
 - `LOG_LEVEL` - Logging level (default: INFO)
 
 **See:** `.env.template` for full list

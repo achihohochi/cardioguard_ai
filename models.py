@@ -143,6 +143,10 @@ class FraudEvidence(BaseModel):
         default="medium",
         description="Severity level: low, medium, high"
     )
+    url: Optional[str] = Field(
+        None,
+        description="URL link to source (for web search evidence)"
+    )
     
     @validator("severity")
     def validate_severity(cls, v):
@@ -188,6 +192,10 @@ class InvestigationReport(BaseModel):
     evidence_summary: List[FraudEvidence] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     regulatory_citations: List[str] = Field(default_factory=list)
+    data_sources: Dict[str, bool] = Field(
+        default_factory=lambda: {"cms": False, "oig": False, "nppes": False, "web_search": False},
+        description="Data sources successfully queried"
+    )
     generated_at: datetime = Field(default_factory=datetime.now)
     report_version: str = "1.0"
     

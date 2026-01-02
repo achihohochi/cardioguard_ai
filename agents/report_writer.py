@@ -70,7 +70,8 @@ class ReportWriter(BaseAgent):
                 executive_summary=executive_summary,
                 evidence_summary=risk_analysis.evidence,
                 recommendations=recommendations,
-                regulatory_citations=regulatory_citations
+                regulatory_citations=regulatory_citations,
+                data_sources=provider_profile.data_sources
             )
             
             self.log_activity("report_generation_completed", {

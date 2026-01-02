@@ -51,6 +51,7 @@ def main():
         - CMS utilization data
         - OIG exclusion database
         - NPPES provider registry
+        - Web search (legal/court records)
         
         Enter a provider NPI to begin investigation.
         """)
@@ -86,6 +87,7 @@ def main():
         - CMS Open Data
         - OIG Exclusions
         - NPPES Registry
+        - Web Search (Legal Records)
         
         **Output:** Investigation report with risk score and evidence
         """)
@@ -138,6 +140,28 @@ def main():
                 
                 st.markdown("---")
                 
+                # Data Sources Status
+                st.subheader("📊 Data Sources")
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    cms_status = "✅" if report.data_sources.get("cms", False) else "❌"
+                    st.write(f"{cms_status} **CMS**")
+                
+                with col2:
+                    oig_status = "✅" if report.data_sources.get("oig", False) else "❌"
+                    st.write(f"{oig_status} **OIG**")
+                
+                with col3:
+                    nppes_status = "✅" if report.data_sources.get("nppes", False) else "❌"
+                    st.write(f"{nppes_status} **NPPES**")
+                
+                with col4:
+                    web_search_status = "✅" if report.data_sources.get("web_search", False) else "❌"
+                    st.write(f"{web_search_status} **Web Search**")
+                
+                st.markdown("---")
+                
                 # Executive Summary
                 st.subheader("📋 Executive Summary")
                 st.write(report.executive_summary)
@@ -154,6 +178,9 @@ def main():
                             st.write(f"**Statistical Significance:** {evidence.statistical_significance:.2f}")
                             if evidence.regulatory_citation:
                                 st.write(f"**Regulatory Citation:** {evidence.regulatory_citation}")
+                            # Show URL link for Web Search evidence
+                            if evidence.data_source == "Web Search" and evidence.url:
+                                st.write(f"**Source URL:** [{evidence.url}]({evidence.url})")
                 else:
                     st.info("No evidence items found.")
                 

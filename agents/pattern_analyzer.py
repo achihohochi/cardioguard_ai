@@ -365,7 +365,8 @@ class PatternAnalyzer(BaseAgent):
                 statistical_significance=legal_info.relevance_score,
                 data_source="Web Search",
                 regulatory_citation="Public court records" if legal_info.verified else "Public records",
-                severity=severity
+                severity=severity,
+                url=legal_info.source_url
             ))
         
         return evidence
