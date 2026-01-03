@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: cardioguard-ai
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+        optional: true
+      - key: PINECONE_ENVIRONMENT
+        sync: false
+        optional: true
+      - key: WEB_SEARCH_ENABLED
+        value: true
+      - key: LOG_LEVEL
+        value: INFO
