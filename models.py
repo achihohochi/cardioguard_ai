@@ -182,6 +182,52 @@ class RiskAnalysis(BaseModel):
         return v
 
 
+class FraudFinancialData(BaseModel):
+    """Financial fraud impact data."""
+    estimated_fraud_amount: Optional[float] = Field(
+        None, 
+        ge=0.0,
+        description="Estimated fraud amount in USD"
+    )
+    settlement_amount: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Settlement amount if available"
+    )
+    restitution_amount: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Court-ordered restitution"
+    )
+    investigation_year: Optional[int] = Field(
+        None,
+        ge=2000,
+        le=2030,
+        description="Year fraud was discovered/investigated"
+    )
+    source: Optional[str] = Field(
+        None,
+        description="Source of financial data (e.g., 'Court records', 'Settlement', 'Investigation')"
+    )
+    notes: Optional[str] = Field(
+        None,
+        description="Additional notes about fraud amounts"
+    )
+    recorded_at: datetime = Field(default_factory=datetime.now)
+    
+    @property
+    def total_fraud_impact(self) -> float:
+        """Calculate total fraud impact (sum of all amounts)."""
+        total = 0.0
+        if self.estimated_fraud_amount:
+            total += self.estimated_fraud_amount
+        if self.settlement_amount:
+            total += self.settlement_amount
+        if self.restitution_amount:
+            total += self.restitution_amount
+        return total
+
+
 class InvestigationReport(BaseModel):
     """Complete investigation report."""
     provider_npi: str
@@ -195,6 +241,10 @@ class InvestigationReport(BaseModel):
     data_sources: Dict[str, bool] = Field(
         default_factory=lambda: {"cms": False, "oig": False, "nppes": False, "web_search": False},
         description="Data sources successfully queried"
+    )
+    fraud_financial_data: Optional[FraudFinancialData] = Field(
+        None,
+        description="Financial fraud impact data (optional)"
     )
     generated_at: datetime = Field(default_factory=datetime.now)
     report_version: str = "1.0"

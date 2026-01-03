@@ -6,6 +6,7 @@ Main user interface for fraud investigators.
 import streamlit as st
 import asyncio
 from pathlib import Path
+from datetime import datetime
 from loguru import logger
 
 import sys
@@ -14,6 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from workflow import analyze_provider_fraud_risk
 from services.export_service import ExportService
+from services.fraud_financial_service import FraudFinancialService
+from models import FraudFinancialData
 from config import validate_config
 
 
@@ -25,8 +28,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Initialize export service
+# Initialize services
 export_service = ExportService()
+fraud_financial_service = FraudFinancialService()
 
 
 def main():
@@ -203,9 +207,118 @@ def main():
                         st.write(f"- {citation}")
                     st.markdown("---")
                 
+                st.markdown("---")
+                
+                # Fraud Financial Data Section
+                st.subheader("💰 Fraud Financial Data")
+                
+                # Load existing financial data if available
+                existing_financial_data = fraud_financial_service.get_financial_data(provider_npi)
+                
+                if existing_financial_data:
+                    st.info(f"**Existing Financial Data Found**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if existing_financial_data.estimated_fraud_amount:
+                            st.metric("Estimated Fraud", f"${existing_financial_data.estimated_fraud_amount:,.2f}")
+                    with col2:
+                        if existing_financial_data.settlement_amount:
+                            st.metric("Settlement Amount", f"${existing_financial_data.settlement_amount:,.2f}")
+                    with col3:
+                        if existing_financial_data.restitution_amount:
+                            st.metric("Restitution", f"${existing_financial_data.restitution_amount:,.2f}")
+                    
+                    if existing_financial_data.total_fraud_impact > 0:
+                        st.success(f"**Total Fraud Impact: ${existing_financial_data.total_fraud_impact:,.2f}**")
+                    
+                    if existing_financial_data.investigation_year:
+                        st.write(f"**Investigation Year:** {existing_financial_data.investigation_year}")
+                    if existing_financial_data.source:
+                        st.write(f"**Source:** {existing_financial_data.source}")
+                
+                # Input form for new/updated financial data
+                with st.expander("➕ Add/Update Fraud Financial Data", expanded=not existing_financial_data):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        estimated_fraud = st.number_input(
+                            "Estimated Fraud Amount ($)",
+                            min_value=0.0,
+                            value=float(existing_financial_data.estimated_fraud_amount) if existing_financial_data and existing_financial_data.estimated_fraud_amount else 0.0,
+                            step=1000.0,
+                            help="Total estimated fraud amount"
+                        )
+                        
+                        settlement_amount = st.number_input(
+                            "Settlement Amount ($)",
+                            min_value=0.0,
+                            value=float(existing_financial_data.settlement_amount) if existing_financial_data and existing_financial_data.settlement_amount else 0.0,
+                            step=1000.0,
+                            help="Settlement amount if available"
+                        )
+                        
+                        restitution_amount = st.number_input(
+                            "Restitution Amount ($)",
+                            min_value=0.0,
+                            value=float(existing_financial_data.restitution_amount) if existing_financial_data and existing_financial_data.restitution_amount else 0.0,
+                            step=1000.0,
+                            help="Court-ordered restitution"
+                        )
+                    
+                    with col2:
+                        investigation_year = st.number_input(
+                            "Investigation Year",
+                            min_value=2000,
+                            max_value=2030,
+                            value=existing_financial_data.investigation_year if existing_financial_data and existing_financial_data.investigation_year else datetime.now().year,
+                            step=1,
+                            help="Year fraud was discovered/investigated"
+                        )
+                        
+                        source = st.text_input(
+                            "Source",
+                            value=existing_financial_data.source if existing_financial_data and existing_financial_data.source else "",
+                            placeholder="e.g., Court records, Settlement, Investigation",
+                            help="Source of financial data"
+                        )
+                        
+                        notes = st.text_area(
+                            "Notes",
+                            value=existing_financial_data.notes if existing_financial_data and existing_financial_data.notes else "",
+                            placeholder="Additional notes about fraud amounts",
+                            height=100
+                        )
+                    
+                    if st.button("💾 Save Financial Data", type="primary"):
+                        if estimated_fraud > 0 or settlement_amount > 0 or restitution_amount > 0:
+                            financial_data = FraudFinancialData(
+                                estimated_fraud_amount=estimated_fraud if estimated_fraud > 0 else None,
+                                settlement_amount=settlement_amount if settlement_amount > 0 else None,
+                                restitution_amount=restitution_amount if restitution_amount > 0 else None,
+                                investigation_year=investigation_year,
+                                source=source if source else None,
+                                notes=notes if notes else None
+                            )
+                            
+                            fraud_financial_service.save_financial_data(provider_npi, financial_data)
+                            
+                            # Update report with financial data
+                            report.fraud_financial_data = financial_data
+                            
+                            st.success(f"✅ Financial data saved! Total impact: ${financial_data.total_fraud_impact:,.2f}")
+                            st.rerun()
+                        else:
+                            st.warning("Please enter at least one financial amount.")
+                
+                st.markdown("---")
+                
                 # PDF Export
                 st.subheader("📄 Export Report")
                 try:
+                    # Load financial data into report if available
+                    if not report.fraud_financial_data:
+                        report.fraud_financial_data = fraud_financial_service.get_financial_data(provider_npi)
+                    
                     pdf_path = export_service.export_to_pdf(report)
                     with open(pdf_path, 'rb') as pdf_file:
                         st.download_button(
@@ -223,6 +336,40 @@ def main():
                 st.error(f"❌ Analysis failed: {str(e)}")
                 logger.error(f"Analysis failed for NPI {provider_npi}: {e}", exc_info=True)
                 st.info("Please check the logs for more details or try again.")
+    
+    # Annual Summary Section (in sidebar)
+    with st.sidebar:
+        st.markdown("---")
+        st.header("📊 Annual Summary")
+        
+        current_year = datetime.now().year
+        selected_year = st.selectbox(
+            "Select Year",
+            options=list(range(2020, current_year + 2)),
+            index=len(list(range(2020, current_year + 2))) - 2,
+            help="View total fraud impact for selected year"
+        )
+        
+        annual_total = fraud_financial_service.get_annual_total(selected_year)
+        
+        if annual_total > 0:
+            st.metric(
+                f"Total Fraud Impact ({selected_year})",
+                f"${annual_total:,.2f}",
+                help="Sum of all fraud amounts recorded for this year"
+            )
+            
+            provider_count = len([
+                npi for npi in fraud_financial_service.get_all_providers_with_financial_data()
+                if any(
+                    entry.investigation_year == selected_year 
+                    for entry in fraud_financial_service.get_all_financial_data(npi)
+                )
+            ])
+            
+            st.caption(f"{provider_count} provider(s) with financial data")
+        else:
+            st.info(f"No financial data recorded for {selected_year}")
     
     # Footer
     st.markdown("---")
