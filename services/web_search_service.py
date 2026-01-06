@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import WEB_SEARCH_ENABLED, WEB_SEARCH_CACHE_DURATION, CACHE_DIR
+from config import WEB_SEARCH_ENABLED, WEB_SEARCH_CACHE_DURATION, CACHE_DIR, WEB_SEARCH_TIMEOUT
 
 
 class WebSearchService:
@@ -192,20 +192,20 @@ class WebSearchService:
                 search_url, 
                 params=params, 
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=WEB_SEARCH_TIMEOUT)
             ) as response:
                 if response.status == 200:
                     html = await response.text()
                     return self._parse_duckduckgo_results(html, query)
                 else:
-                    logger.warning(f"DuckDuckGo search returned status {response.status}")
+                    logger.error(f"DuckDuckGo search returned status {response.status}")
                     return []
                     
         except asyncio.TimeoutError:
-            logger.warning(f"Web search timeout for query: {query}")
+            logger.error(f"Web search timeout after {WEB_SEARCH_TIMEOUT}s for query: {query}")
             return []
         except Exception as e:
-            logger.warning(f"Web search error for query '{query}': {e}")
+            logger.error(f"Web search error for query '{query}': {e}")
             return []
     
     def _parse_duckduckgo_results(self, html: str, query: str) -> List[Dict[str, Any]]:

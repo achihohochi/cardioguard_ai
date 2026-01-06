@@ -68,6 +68,13 @@ NPPES_CACHE_DURATION = 7 * 24 * 3600  # seconds
 # Analysis Cache: 1 hour
 ANALYSIS_CACHE_DURATION = 3600  # seconds
 
+# API Timeout Configuration (in seconds)
+# Increased for Render's slower network on free tier
+CMS_API_TIMEOUT = int(os.getenv("CMS_API_TIMEOUT", "60"))  # Increased from 30
+NPPES_API_TIMEOUT = int(os.getenv("NPPES_API_TIMEOUT", "60"))  # Increased from 30
+OIG_API_TIMEOUT = int(os.getenv("OIG_API_TIMEOUT", "180"))  # Increased from 120
+WEB_SEARCH_TIMEOUT = int(os.getenv("WEB_SEARCH_TIMEOUT", "30"))  # Increased from 10
+
 # Pinecone Configuration
 PINECONE_CONFIG = {
     "index_name": PINECONE_INDEX_NAME,

@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import OIG_EXCLUSIONS_URL, OIG_CACHE_DURATION, CACHE_DIR
+from config import OIG_EXCLUSIONS_URL, OIG_CACHE_DURATION, CACHE_DIR, OIG_API_TIMEOUT
 
 
 # Exclusion type mappings
@@ -53,7 +53,7 @@ class OIGDataService:
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(self.exclusions_url, timeout=aiohttp.ClientTimeout(total=120)) as response:
+                async with session.get(self.exclusions_url, timeout=aiohttp.ClientTimeout(total=OIG_API_TIMEOUT)) as response:
                     if response.status == 200:
                         content = await response.read()
                         

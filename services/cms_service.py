@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import CMS_API_BASE_URL, CMS_DATASET_ID, CMS_CACHE_DURATION, CACHE_DIR
+from config import CMS_API_BASE_URL, CMS_DATASET_ID, CMS_CACHE_DURATION, CACHE_DIR, CMS_API_TIMEOUT
 
 
 class CMSDataService:
@@ -59,7 +59,7 @@ class CMSDataService:
         """Try a single API endpoint and return (data, error_message)."""
         try:
             session = await self._get_session()
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=CMS_API_TIMEOUT)) as response:
                 if response.status == 200:
                     data = await response.json()
                     npi_value = params.get('filter[NPI]') or params.get('filter[npi]') or params.get('npi', 'unknown')
@@ -68,15 +68,15 @@ class CMSDataService:
                 else:
                     error_text = await response.text()
                     error_msg = f"{endpoint_name} returned status {response.status}: {error_text[:200]}"
-                    logger.warning(f"CMS API endpoint failed: {error_msg}")
+                    logger.error(f"CMS API endpoint failed: {error_msg}")
                     return None, error_msg
         except asyncio.TimeoutError:
-            error_msg = f"{endpoint_name} timeout"
-            logger.warning(f"CMS API endpoint timeout: {error_msg}")
+            error_msg = f"{endpoint_name} timeout after {CMS_API_TIMEOUT}s"
+            logger.error(f"CMS API endpoint timeout: {error_msg}")
             return None, error_msg
         except Exception as e:
             error_msg = f"{endpoint_name} error: {str(e)}"
-            logger.warning(f"CMS API endpoint exception: {error_msg}")
+            logger.error(f"CMS API endpoint exception: {error_msg}")
             return None, error_msg
     
     async def get_provider_utilization(self, npi: str) -> Dict:

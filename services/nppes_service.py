@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import NPPES_API_URL, NPPES_CACHE_DURATION, CACHE_DIR
+from config import NPPES_API_URL, NPPES_CACHE_DURATION, CACHE_DIR, NPPES_API_TIMEOUT
 
 
 class NPPESDataService:
@@ -73,7 +73,7 @@ class NPPESDataService:
                 "pretty": "true"
             }
             
-            async with session.get(self.api_url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
+            async with session.get(self.api_url, params=params, timeout=aiohttp.ClientTimeout(total=NPPES_API_TIMEOUT)) as response:
                 if response.status == 200:
                     data = await response.json()
                     processed_data = self._process_nppes_response(data, npi)
@@ -87,16 +87,17 @@ class NPPESDataService:
                     
                     return processed_data
                 else:
-                    error_msg = f"NPPES API error: {response.status}"
+                    error_text = await response.text()
+                    error_msg = f"NPPES API returned status {response.status}: {error_text[:200]}"
                     logger.error(error_msg)
                     return {"error": error_msg}
                     
         except asyncio.TimeoutError:
-            error_msg = "NPPES API timeout"
+            error_msg = f"NPPES API timeout after {NPPES_API_TIMEOUT}s"
             logger.error(error_msg)
             return {"error": error_msg}
         except Exception as e:
-            error_msg = f"NPPES connection failed: {str(e)}"
+            error_msg = f"NPPES API error: {str(e)}"
             logger.error(error_msg)
             return {"error": error_msg}
     
