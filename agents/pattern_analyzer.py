@@ -160,8 +160,75 @@ class PatternAnalyzer(BaseAgent):
         return patterns
     
     def calculate_risk_score(self, anomalies: Dict[str, Any], evidence: List[FraudEvidence], provider: ProviderProfile) -> int:
-        """Calculate composite risk score (0-100) with OIG exclusions prioritized."""
+        """Calculate composite risk score (0-100) with OIG exclusions and convictions prioritized."""
         base_score = 0
+        
+        # CRITICAL: Check for convictions in legal information FIRST (before OIG check)
+        # Convictions from legal information should be treated as seriously as OIG exclusions
+        has_conviction = False
+        
+        # Check if web search succeeded but legal_information is empty (potential issue)
+        if provider.data_sources.get('web_search', False) and not provider.legal_information:
+            logger.error(
+                f"WARNING: Web search succeeded for NPI {provider.npi} but legal_information list is empty. "
+                f"This may indicate a parsing or filtering issue."
+            )
+        
+        if provider.legal_information:
+            logger.info(
+                f"Checking {len(provider.legal_information)} legal information items for NPI {provider.npi}. "
+                f"Case types: {[info.case_type for info in provider.legal_information]}"
+            )
+            for legal_info in provider.legal_information:
+                logger.debug(
+                    f"Legal info: case_type={legal_info.case_type}, status={legal_info.status}, "
+                    f"relevance={legal_info.relevance_score:.2f}, "
+                    f"description={legal_info.description[:100]}"
+                )
+                
+                # Check for conviction case type (primary check)
+                if legal_info.case_type == "conviction":
+                    has_conviction = True
+                    logger.warning(
+                        f"CRITICAL: Conviction found in legal information for NPI {provider.npi}: "
+                        f"case_type={legal_info.case_type}, status={legal_info.status}, "
+                        f"description='{legal_info.description[:100]}', Setting base score to 90"
+                    )
+                    base_score = 90
+                    break  # Use first conviction found
+                
+                # Fallback: Check description for conviction keywords (in case classification failed)
+                description_lower = legal_info.description.lower()
+                url_lower = legal_info.source_url.lower() if legal_info.source_url else ""
+                conviction_keywords_in_desc = [
+                    "convicted", "felony", "sentenced", "pleaded guilty", "plead guilty",
+                    "found guilty", "criminal conviction", "prison", "jail",
+                    "plea deal", "plea agreement", "criminal case", "felony conviction"
+                ]
+                
+                # Check description
+                if any(keyword in description_lower for keyword in conviction_keywords_in_desc):
+                    has_conviction = True
+                    logger.warning(
+                        f"CRITICAL: Conviction keywords found in description for NPI {provider.npi}: "
+                        f"'{legal_info.description[:100]}', Setting base score to 90"
+                    )
+                    base_score = 90
+                    break  # Use first conviction found
+                
+                # Check URL for conviction indicators (court case numbers, "criminal", etc.)
+                if url_lower and any(keyword in url_lower for keyword in ["criminal", "conviction", "court"]):
+                    # Only treat as conviction if description also has conviction-related content
+                    if any(keyword in description_lower for keyword in ["guilty", "sentenced", "felony", "prison"]):
+                        has_conviction = True
+                        logger.warning(
+                            f"CRITICAL: Conviction indicators found in URL and description for NPI {provider.npi}: "
+                            f"URL={legal_info.source_url}, Setting base score to 90"
+                        )
+                        base_score = 90
+                        break  # Use first conviction found
+        else:
+            logger.info(f"No legal information available for NPI {provider.npi}")
         
         # CRITICAL: OIG exclusions override other factors and set minimum base scores
         if provider.exclusion_data.excluded:
@@ -187,8 +254,8 @@ class PatternAnalyzer(BaseAgent):
                 base_score = 75
                 logger.warning(f"Unknown exclusion type '{exclusion_type}' for NPI {provider.npi}: Setting base score to 75")
         
-        # If no exclusion, calculate score from anomalies and evidence
-        else:
+        # If no exclusion or conviction, calculate score from anomalies and evidence
+        elif not has_conviction:
             # Statistical anomalies (weighted by severity)
             anomaly_scores = []
             for metric_name, anomaly_data in anomalies.items():
@@ -209,11 +276,16 @@ class PatternAnalyzer(BaseAgent):
             base_score += medium_severity_evidence * 5
         
         # Legal information scoring (applies to all providers, including excluded ones)
+        # Note: Convictions are already handled above with base_score = 90
         if provider.legal_information:
             legal_scores = []
+            conviction_count = 0
             for legal_info in provider.legal_information:
                 if legal_info.case_type == "conviction":
-                    legal_scores.append(20)  # Conviction = high risk
+                    conviction_count += 1
+                    # Convictions already set base_score to 90 above, but add bonus for multiple convictions
+                    if conviction_count > 1:
+                        legal_scores.append(10)  # Additional conviction = +10
                 elif legal_info.case_type == "lawsuit":
                     if legal_info.status == "pending":
                         legal_scores.append(15)  # Pending lawsuit = medium-high risk
@@ -227,10 +299,31 @@ class PatternAnalyzer(BaseAgent):
                     legal_scores.append(15)  # Pending case = medium-high risk
             
             if legal_scores:
-                # Use highest legal score, then add 5 for each additional legal issue
-                base_score += max(legal_scores)
-                if len(legal_scores) > 1:
-                    base_score += min(10, (len(legal_scores) - 1) * 5)  # Max +10 for multiple issues
+                # Calculate total legal points
+                total_legal_points = sum(legal_scores)
+                
+                # For providers without exclusions/convictions, legal issues should contribute significantly
+                # Apply legal scoring based on severity and count
+                if not provider.exclusion_data.excluded and not has_conviction:
+                    # Add all legal points to base score (reflects true risk from multiple legal issues)
+                    # This ensures providers with serious legal problems (multiple lawsuits/allegations) 
+                    # receive appropriately high risk scores
+                    base_score += total_legal_points
+                    logger.info(
+                        f"Legal scoring for NPI {provider.npi}: {len(legal_scores)} items "
+                        f"({sum(1 for ls in legal_scores if ls == 15)} lawsuits, "
+                        f"{sum(1 for ls in legal_scores if ls == 10)} allegations), "
+                        f"total_points={total_legal_points}, base_score_after_legal={base_score}"
+                    )
+                else:
+                    # For excluded/convicted providers, legal issues add smaller bonus (already high base score)
+                    # Cap at 15 additional points since base score is already 70-90
+                    legal_bonus = min(15, total_legal_points)
+                    base_score += legal_bonus
+                    logger.info(
+                        f"Legal scoring for excluded/convicted NPI {provider.npi}: "
+                        f"{len(legal_scores)} items, bonus_added={legal_bonus}"
+                    )
         
         # Calculate data quality score from data sources
         data_quality = self._calculate_data_quality(provider)
@@ -253,8 +346,15 @@ class PatternAnalyzer(BaseAgent):
             elif base_score < 75:  # Unknown exclusion type minimum
                 base_score = 75
         
+        # Ensure providers with convictions meet minimum threshold (even if not in OIG database)
+        if has_conviction and base_score < 90:
+            base_score = 90
+            logger.warning(f"Ensuring conviction-based minimum score of 90 for NPI {provider.npi}")
+        
         # Cap at 100
         risk_score = min(100, int(base_score))
+        
+        logger.info(f"Final risk score for NPI {provider.npi}: {risk_score}/100 (base: {base_score}, excluded: {provider.exclusion_data.excluded}, has_conviction: {has_conviction})")
         
         return risk_score
     

@@ -27,7 +27,9 @@ MAX_TOKENS_PER_REQUEST = int(os.getenv("MAX_TOKENS_PER_REQUEST", "1000"))
 
 # Data Sources Configuration
 CMS_API_BASE_URL = os.getenv("CMS_API_BASE_URL", "https://data.cms.gov/data-api/v1/dataset/")
-CMS_DATASET_ID = os.getenv("CMS_DATASET_ID", "mj5m-pzi6")  # Provider summary dataset
+# CMS Provider Utilization dataset UUID
+# Dataset URL: https://data.cms.gov/data-api/v1/dataset/92396110-2aed-4d63-a6a2-5d6207d46a29/data
+CMS_DATASET_ID = os.getenv("CMS_DATASET_ID", "92396110-2aed-4d63-a6a2-5d6207d46a29")
 OIG_EXCLUSIONS_URL = os.getenv(
     "OIG_EXCLUSIONS_URL",
     "https://oig.hhs.gov/exclusions/downloadables/UPDATED.csv"

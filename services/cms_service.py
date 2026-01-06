@@ -1,11 +1,12 @@
 """
 CMS Open Data Service
 Integration with CMS provider utilization data API.
+Supports both CMS Data API v1 and Provider Data Catalog API with fallback.
 """
 
 import aiohttp
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from pathlib import Path
 import json
 from datetime import datetime, timedelta
@@ -19,10 +20,14 @@ from config import CMS_API_BASE_URL, CMS_DATASET_ID, CMS_CACHE_DURATION, CACHE_D
 
 
 class CMSDataService:
-    """Service for accessing CMS Open Data API."""
+    """Service for accessing CMS Open Data API with fallback support."""
     
     def __init__(self):
         self.base_url = CMS_API_BASE_URL
+        self.dataset_id = CMS_DATASET_ID
+        # Socrata API format (alternative endpoint for physician data)
+        self.socrata_base_url = "https://data.cms.gov/resource/"
+        self.socrata_dataset_id = "n5eg-4yib"  # Physician and Other Supplier PUF dataset
         self.cache_dir = CACHE_DIR / "cms"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.session: Optional[aiohttp.ClientSession] = None
@@ -50,66 +55,99 @@ class CMSDataService:
         cache_age = datetime.now() - datetime.fromtimestamp(cache_path.stat().st_mtime)
         return cache_age.total_seconds() < CMS_CACHE_DURATION
     
-    async def get_provider_utilization(self, npi: str) -> Dict:
-        """Get provider utilization data from CMS."""
-        cache_path = self._get_cache_path(npi)
-        
-        # Check cache first
-        if self._is_cache_valid(cache_path):
-            logger.info(f"Using cached CMS data for NPI {npi}")
-            try:
-                with open(cache_path, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.warning(f"Failed to read cache: {e}")
-        
-        # Fetch from API
+    async def _try_api_endpoint(self, url: str, params: Dict, endpoint_name: str) -> Tuple[Optional[Dict], Optional[str]]:
+        """Try a single API endpoint and return (data, error_message)."""
         try:
             session = await self._get_session()
-            
-            # CMS Open Data API v1 endpoint
-            # Base URL: https://data.cms.gov/data-api/v1/dataset/
-            # Dataset ID: mj5m-pzi6 (provider summary data)
-            url = f"{self.base_url}{CMS_DATASET_ID}/data"
-            
-            # CMS API v1 uses filter[npi] format (no quotes around NPI value)
-            params = {
-                f"filter[npi]": npi,
-                "limit": 1000
-            }
-            
             async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
                 if response.status == 200:
                     data = await response.json()
+                    npi_value = params.get('filter[NPI]') or params.get('filter[npi]') or params.get('npi', 'unknown')
+                    logger.info(f"Successfully fetched CMS data from {endpoint_name} for NPI {npi_value}")
+                    return data, None
+                else:
+                    error_text = await response.text()
+                    error_msg = f"{endpoint_name} returned status {response.status}: {error_text[:200]}"
+                    logger.warning(f"CMS API endpoint failed: {error_msg}")
+                    return None, error_msg
+        except asyncio.TimeoutError:
+            error_msg = f"{endpoint_name} timeout"
+            logger.warning(f"CMS API endpoint timeout: {error_msg}")
+            return None, error_msg
+        except Exception as e:
+            error_msg = f"{endpoint_name} error: {str(e)}"
+            logger.warning(f"CMS API endpoint exception: {error_msg}")
+            return None, error_msg
+    
+    async def get_provider_utilization(self, npi: str) -> Dict:
+        """Get provider utilization data from CMS."""
+        try:
+            logger.info(f"Starting CMS data fetch for NPI {npi}")
+            cache_path = self._get_cache_path(npi)
+            
+            # Check cache first
+            if self._is_cache_valid(cache_path):
+                logger.info(f"Using cached CMS data for NPI {npi}")
+                try:
+                    with open(cache_path, 'r') as f:
+                        return json.load(f)
+                except Exception as e:
+                    logger.warning(f"Failed to read cache: {e}")
+            
+            logger.info(f"Fetching CMS data from API for NPI {npi} (cache miss or expired)")
+            # Try multiple API endpoints and filter formats with fallback
+            # NOTE: If dataset ID is invalid (404), visit https://data.cms.gov/ to find correct UUID
+            endpoints_to_try = [
+                # Primary: CMS Data API v1 with uppercase NPI filter (per CMS API docs)
+                {
+                    "url": f"{self.base_url}{self.dataset_id}/data",
+                    "params": {"filter[NPI]": npi, "limit": 1000},
+                    "name": "CMS Data API v1 (filter[NPI])"
+                },
+                # Fallback: CMS Data API v1 with lowercase npi filter (for compatibility)
+                {
+                    "url": f"{self.base_url}{self.dataset_id}/data",
+                    "params": {"filter[npi]": npi, "limit": 1000},
+                    "name": "CMS Data API v1 (filter[npi])"
+                },
+                # Note: Socrata API removed - deprecated (410 error) as of 2025
+            ]
+            
+            errors = []
+            for idx, endpoint in enumerate(endpoints_to_try, 1):
+                logger.info(f"Trying CMS endpoint {idx}/{len(endpoints_to_try)}: {endpoint['name']} for NPI {npi}")
+                data, error = await self._try_api_endpoint(
+                    endpoint["url"],
+                    endpoint["params"],
+                    endpoint["name"]
+                )
+                
+                if data is not None:
+                    # Process and cache successful response
                     processed_data = self._process_cms_response(data, npi)
                     
-                    # Cache the result
-                    try:
-                        with open(cache_path, 'w') as f:
-                            json.dump(processed_data, f)
-                    except Exception as e:
-                        logger.warning(f"Failed to cache CMS data: {e}")
+                    # Only cache if we got valid data (not an error response)
+                    if "error" not in processed_data:
+                        try:
+                            with open(cache_path, 'w') as f:
+                                json.dump(processed_data, f)
+                            logger.info(f"Cached CMS data for NPI {npi}")
+                        except Exception as e:
+                            logger.warning(f"Failed to cache CMS data: {e}")
                     
                     return processed_data
                 else:
-                    # CMS is optional - log warning instead of error
-                    # System works with just OIG + NPPES for excluded providers
-                    warning_msg = f"CMS API returned status {response.status} - CMS data unavailable (optional)"
-                    logger.warning(warning_msg)
-                    return {
-                        "error": warning_msg,
-                        "total_services": 0,
-                        "unique_beneficiaries": 0,
-                        "total_charges": 0.0,
-                        "total_payments": 0.0,
-                        "provider_type": "Unknown",
-                        "medicare_participation": "Unknown",
-                        "npi": npi
-                    }
-                    
-        except asyncio.TimeoutError:
-            # CMS is optional - log warning instead of error
-            warning_msg = "CMS API timeout - CMS data unavailable (optional, system continues with OIG + NPPES)"
+                    errors.append(f"{endpoint['name']}: {error}")
+            
+            # All endpoints failed - return error response with helpful guidance
+            all_errors = "; ".join(errors)
+            warning_msg = (
+                f"All CMS API endpoints failed - CMS data unavailable (optional, system continues with OIG + NPPES). "
+                f"Errors: {all_errors}. "
+                f"NOTE: Dataset ID '{self.dataset_id}' may be invalid. "
+                f"To fix: Visit https://data.cms.gov/ and search for 'Physician Utilization' dataset, "
+                f"then update CMS_DATASET_ID in config.py with the correct dataset UUID."
+            )
             logger.warning(warning_msg)
             return {
                 "error": warning_msg,
@@ -122,11 +160,10 @@ class CMSDataService:
                 "npi": npi
             }
         except Exception as e:
-            # CMS is optional - log warning instead of error
-            warning_msg = f"CMS connection failed: {str(e)} - CMS data unavailable (optional, system continues with OIG + NPPES)"
-            logger.warning(warning_msg)
+            error_msg = f"Unexpected error in CMS service for NPI {npi}: {str(e)}"
+            logger.error(error_msg, exc_info=True)
             return {
-                "error": warning_msg,
+                "error": error_msg,
                 "total_services": 0,
                 "unique_beneficiaries": 0,
                 "total_charges": 0.0,

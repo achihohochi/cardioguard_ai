@@ -1,0 +1,107 @@
+{
+  "1104614668": [
+    {
+      "estimated_fraud_amount": 360000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Court records; Public records",
+      "notes": "Estimated fraud: $110,000,000 | Estimated fraud: $360,000,000 | Estimated fraud: $87,000,000 | Estimated fraud: $110,000,000",
+      "recorded_at": "2026-01-02 20:12:11.572505"
+    }
+  ],
+  "1770637670": [
+    {
+      "estimated_fraud_amount": 250000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Court conviction records",
+      "notes": "Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000",
+      "recorded_at": "2026-01-02 20:13:24.425184"
+    },
+    {
+      "estimated_fraud_amount": 250000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Court conviction records",
+      "notes": "Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000",
+      "recorded_at": "2026-01-05 19:12:36.668638"
+    },
+    {
+      "estimated_fraud_amount": 250000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Court conviction records",
+      "notes": "Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000",
+      "recorded_at": "2026-01-05 19:21:02.892450"
+    },
+    {
+      "estimated_fraud_amount": 250000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Court conviction records",
+      "notes": "Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000",
+      "recorded_at": "2026-01-05 19:39:15.573646"
+    },
+    {
+      "estimated_fraud_amount": 250000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Court conviction records",
+      "notes": "Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000",
+      "recorded_at": "2026-01-05 20:09:27.555699"
+    },
+    {
+      "estimated_fraud_amount": 250000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Court conviction records",
+      "notes": "Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000 | Estimated fraud: $250,000,000",
+      "recorded_at": "2026-01-05 20:10:04.512518"
+    }
+  ],
+  "1386756476": [
+    {
+      "estimated_fraud_amount": 110000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Public records",
+      "notes": "Estimated fraud: $110,000,000",
+      "recorded_at": "2026-01-03 16:21:42.733867"
+    },
+    {
+      "estimated_fraud_amount": 110000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Public records",
+      "notes": "Estimated fraud: $110,000,000",
+      "recorded_at": "2026-01-05 19:43:56.701748"
+    },
+    {
+      "estimated_fraud_amount": 110000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Public records",
+      "notes": "Estimated fraud: $110,000,000",
+      "recorded_at": "2026-01-05 19:59:24.711055"
+    },
+    {
+      "estimated_fraud_amount": 110000000.0,
+      "settlement_amount": null,
+      "restitution_amount": null,
+      "investigation_year": null,
+      "source": "Public records",
+      "notes": "Estimated fraud: $110,000,000",
+      "recorded_at": "2026-01-05 20:10:26.853689"
+    }
+  ]
+}

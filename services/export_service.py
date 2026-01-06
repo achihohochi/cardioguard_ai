@@ -112,38 +112,6 @@ class ExportService:
             
             story.append(Spacer(1, 0.2*inch))
         
-        # Fraud Financial Data
-        if report.fraud_financial_data:
-            story.append(Paragraph("<b>Fraud Financial Impact</b>", styles['Heading2']))
-            story.append(Spacer(1, 0.1*inch))
-            
-            financial = report.fraud_financial_data
-            
-            if financial.estimated_fraud_amount:
-                story.append(Paragraph(f"<b>Estimated Fraud Amount:</b> ${financial.estimated_fraud_amount:,.2f}", styles['Normal']))
-            
-            if financial.settlement_amount:
-                story.append(Paragraph(f"<b>Settlement Amount:</b> ${financial.settlement_amount:,.2f}", styles['Normal']))
-            
-            if financial.restitution_amount:
-                story.append(Paragraph(f"<b>Restitution Amount:</b> ${financial.restitution_amount:,.2f}", styles['Normal']))
-            
-            if financial.total_fraud_impact > 0:
-                story.append(Spacer(1, 0.1*inch))
-                story.append(Paragraph(f"<b>Total Fraud Impact:</b> ${financial.total_fraud_impact:,.2f}", styles['Heading3']))
-            
-            if financial.investigation_year:
-                story.append(Paragraph(f"<b>Investigation Year:</b> {financial.investigation_year}", styles['Normal']))
-            
-            if financial.source:
-                story.append(Paragraph(f"<b>Source:</b> {financial.source}", styles['Normal']))
-            
-            if financial.notes:
-                story.append(Spacer(1, 0.1*inch))
-                story.append(Paragraph(f"<b>Notes:</b> {financial.notes}", styles['Normal']))
-            
-            story.append(Spacer(1, 0.2*inch))
-        
         # Build PDF
         doc.build(story)
         

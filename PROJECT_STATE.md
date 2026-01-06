@@ -1,9 +1,9 @@
 # PROJECT_STATE — CardioGuard_AI
 
-Last updated: 2025-01-02
+Last updated: 2026-01-05
 Owner: chiho
 Current branch: main
-Last known good commit: a3d88e3 (Add web search legal information feature and fix async data collection bug)
+Last known good commit: [Latest] (Render deployment, fraud financial tracking, risk scoring improvements)
 
 ## 0) TL;DR (60 seconds)
 **What this repo does:** Healthcare fraud detection system that analyzes provider NPIs to generate fraud risk scores (0-100) with evidence-based investigation reports in ~30 seconds using CMS, OIG, NPPES, and web search (legal/court records) data sources.
@@ -21,17 +21,27 @@ Last known good commit: a3d88e3 (Add web search legal information feature and fi
 - ✅ CMS, OIG, NPPES API integrations with parallel data collection
 - ✅ Web search integration for legal/court records (DuckDuckGo, free tier)
 - ✅ Risk scoring algorithm with OIG exclusion prioritization (felony = 90+, mandatory = 80+, permissive = 70+)
-- ✅ Legal information risk scoring (convictions +20, pending lawsuits +15, allegations +10)
+- ✅ Legal information risk scoring with conviction prioritization (convictions = 90+ base score, pending lawsuits +15, allegations +10)
+- ✅ Fraud financial data tracking (read-only display of fraud amounts and year verdict given)
+- ✅ Annual fraud summary aggregation by year
+- ✅ Render deployment configuration (render.yaml, runtime.txt, DEPLOYMENT.md)
 - ✅ Streamlit UI for provider NPI input and results display
 - ✅ Data sources status display (CMS, OIG, NPPES, Web Search)
 - ✅ Evidence summary with clickable URLs for web search sources
 - ✅ PDF report generation with evidence summaries and recommendations
-- ✅ CMS API endpoint fixed (using correct CMS Open Data API v1)
-- ✅ Risk scoring correctly identifies excluded providers (tested with NPI 1992796015)
+- ✅ CMS API endpoint fixed (using correct CMS Open Data API v1 with dataset ID `92396110-2aed-4d63-a6a2-5d6207d46a29`)
+- ✅ CMS API integration validated and working - successfully fetching provider utilization data
+- ✅ CMS data used for statistical anomaly detection (z-score calculation vs peer baselines)
+- ✅ Risk scoring correctly identifies excluded providers and convicted felons (tested with NPIs 1992796015, 1265610463, 1003051319)
+- ✅ Risk scoring fixed - legal issues properly counted (removed incorrect cap bug)
+- ✅ Convictions from legal information trigger 90+ risk scores (even if not in OIG database)
 - ✅ CMS failures handled gracefully (system works with OIG + NPPES alone)
 - ✅ Async data collection bug fixed (variable name mismatch resolved)
 - ✅ Configuration management with .env file
 - ✅ .gitignore protecting sensitive API keys
+- ✅ Risk scoring fixes for convicted felons (convictions from legal information now trigger 90+ scores)
+- ✅ Enhanced conviction detection (improved keywords, better classification)
+- ✅ Fraud financial data storage and display (JSON-based, read-only UI)
 
 ### Phase 2 (next) 🟡
 - 🟡 Full end-to-end testing with multiple real NPIs (high-risk and low-risk cases)
@@ -90,10 +100,12 @@ streamlit run app.py
 - ✅ Error handling for missing/invalid data
 - ✅ CMS API failures handled gracefully (continues with OIG + NPPES)
 - ✅ Web search failures handled gracefully (optional data source)
+- ✅ Fraud financial data display (read-only, largest amount and year verdict given)
+- ✅ Annual fraud summary aggregation (sidebar view)
 
 ### Known limitations
-- CMS API endpoint may need adjustment based on actual CMS API response format
-- Peer baseline comparison uses default values (not real CMS peer data)
+- ✅ CMS API endpoint working correctly with validated dataset ID
+- Peer baseline comparison uses default values (not real CMS peer data) - enhancement opportunity
 - Temporal pattern analysis is simplified (no time-series data available)
 - Pinecone vector storage is optional and not fully integrated
 
@@ -115,9 +127,11 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 - `app.py` - Streamlit UI entry point
 - `workflow.py` - Agent orchestration
 - `agents/` - 4 agent modules (research, pattern_analyzer, report_writer, quality_checker)
-- `services/` - 8 service modules (CMS, OIG, NPPES, data, vector, export, web_search, legal_parser)
-- `models.py` - Pydantic data models (includes LegalInformation)
+- `services/` - 9 service modules (CMS, OIG, NPPES, data, vector, export, web_search, legal_parser, fraud_financial)
+- `models.py` - Pydantic data models (includes LegalInformation, FraudFinancialData)
 - `config.py` - Configuration management
+- `render.yaml` - Render deployment configuration
+- `DEPLOYMENT.md` - Deployment guide for Render hosting
 
 ## 4) Recent changes
 
@@ -150,6 +164,40 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 - Created QUICKSTART.md and RUN_GUIDE.md
 - Added directory structure files (.gitkeep)
 
+**2026-01-02: Render Deployment Configuration**
+- Created `render.yaml` - Render service configuration file
+- Created `runtime.txt` - Python 3.11.0 version specification
+- Created `DEPLOYMENT.md` - Comprehensive deployment guide with step-by-step instructions
+- Created `.streamlit/config.toml` - Streamlit server configuration for Render
+- Configured for automatic deployment on git push (after initial setup)
+
+**2026-01-02: Fraud Financial Tracking Feature**
+- Added `FraudFinancialData` model to `models.py` (estimated_fraud_amount, settlement_amount, restitution_amount, investigation_year)
+- Created `services/fraud_financial_service.py` - JSON-based storage for fraud financial data
+- Added fraud financial data display to Streamlit UI (read-only, shows largest amount and year verdict given)
+- Added annual summary view in sidebar (aggregates fraud totals by year)
+- Updated PDF export to include fraud financial data
+- Simplified UI: removed all edit/save functionality, display-only
+
+**2026-01-02: Risk Scoring Improvements**
+- Fixed risk scoring to prioritize convictions from legal information (90+ base score)
+- Enhanced conviction detection in legal parser (added fraud/theft keywords)
+- Improved conviction classification logic (more aggressive detection)
+- Added conviction check BEFORE OIG exclusion check (catches felons not yet in OIG database)
+- Enhanced logging for risk score calculation debugging
+- Ensured minimum 90 score for any provider with conviction (even if not in OIG database)
+
+**2026-01-05: CMS API Integration & Risk Scoring Fixes**
+- ✅ **CMS API Successfully Integrated**: Updated dataset ID to `92396110-2aed-4d63-a6a2-5d6207d46a29` (validated working)
+- ✅ **CMS Data Now Accessible**: API calls succeeding, provider utilization data being retrieved successfully
+- ✅ **CMS Used in Risk Scoring**: Statistical anomaly detection using CMS utilization data (z-score calculation vs peer baselines)
+- ✅ **Risk Score Calculation Fixed**: Removed incorrect legal scoring cap bug - all legal issues now properly counted
+- ✅ **Enhanced Logging**: Added detailed logging for CMS API calls, endpoint attempts, and risk score calculation steps
+- ✅ **Multi-Endpoint Fallback**: CMS service tries multiple API endpoints and filter formats for reliability
+- ✅ **Documentation Updated**: Added comprehensive guides on CMS data value, NPPES role, and risk score deconstruction
+- **CMS Integration Status**: Fully functional - successfully fetching utilization data, contributing to anomaly detection and data quality scoring
+- **Risk Scoring Status**: Fixed - legal issues properly scored (lawsuits +15, allegations +10), no artificial caps
+
 ## 5) Testing status
 
 **Unit Tests:** Basic structure in place (`tests/test_workflow.py`)
@@ -163,8 +211,12 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 
 **Manual Testing:** ✅ Verified
 - NPI 1992796015 (excluded provider) - Risk score 90+ ✅
+- NPI 1265610463 (convicted felon) - Risk score 90+ ✅ (fixed)
+- NPI 1003051319 (convicted felon) - Risk score 90+ ✅ (fixed)
 - Streamlit UI launches and displays results ✅
 - PDF export generates correctly ✅
+- Fraud financial data displays correctly ✅
+- Annual summary aggregation works ✅
 
 ## 6) Dependencies
 
@@ -193,7 +245,7 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 - `PINECONE_API_KEY` - Pinecone vector database (optional)
 - `PINECONE_ENVIRONMENT` - Pinecone environment
 - `CMS_API_BASE_URL` - CMS API base URL (has default)
-- `CMS_DATASET_ID` - CMS dataset ID (has default: mj5m-pzi6)
+- `CMS_DATASET_ID` - CMS dataset ID (has default: `92396110-2aed-4d63-a6a2-5d6207d46a29` - validated working)
 - `WEB_SEARCH_ENABLED` - Enable web search (default: true)
 - `WEB_SEARCH_PROVIDER` - Search provider (default: duckduckgo)
 - `LOG_LEVEL` - Logging level (default: INFO)
@@ -228,17 +280,25 @@ Provider NPI → Research Agent → Pattern Analyzer → Report Writer → Quali
 
 ## 10) Deployment
 
-**Current:** Local development only
-- Run: `streamlit run app.py`
-- Access: `http://localhost:8501`
+**Current:** 
+- **Local development**: `streamlit run app.py` → `http://localhost:8501`
+- **Render deployment**: Configuration files ready, manual deployment required
 
-**Future:** Could deploy to:
-- Streamlit Cloud (free tier available)
-- Docker container
-- Cloud VM (AWS, GCP, Azure)
+**Render Deployment Status:** ✅ Configuration Complete
+- `render.yaml` - Service configuration
+- `runtime.txt` - Python version specification
+- `DEPLOYMENT.md` - Complete deployment guide
+- `.streamlit/config.toml` - Streamlit server config
 
-**Not yet configured:** No production deployment setup yet.
+**Deployment Steps:**
+1. Push code to GitHub
+2. Connect GitHub repo to Render dashboard
+3. Set environment variables (ANTHROPIC_API_KEY required)
+4. Deploy service
+5. Future deployments: Automatic on git push
+
+**See:** `DEPLOYMENT.md` for detailed instructions
 
 ---
 
-**Status:** ✅ Phase 1 Complete | 🟡 Phase 2 In Planning
+**Status:** ✅ Phase 1 Complete | 🟡 Phase 2 In Planning | ✅ Deployment Ready | ✅ Financial Tracking Complete

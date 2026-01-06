@@ -4,19 +4,20 @@ Orchestrates data collection from all sources with parallel processing.
 """
 
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from loguru import logger
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models import ProviderProfile, ProviderName, ProviderLocation, UtilizationData, ExclusionData, ProviderTaxonomy, LegalInformation
+from models import ProviderProfile, ProviderName, ProviderLocation, UtilizationData, ExclusionData, ProviderTaxonomy, LegalInformation, FraudFinancialData
 from .cms_service import CMSDataService
 from .oig_service import OIGDataService
 from .nppes_service import NPPESDataService
 from .web_search_service import WebSearchService
 from .legal_parser_service import LegalParserService
+from .fraud_financial_service import FraudFinancialService
 
 
 class DataService:
@@ -28,6 +29,7 @@ class DataService:
         self.nppes_service = NPPESDataService()
         self.web_search_service = WebSearchService()
         self.legal_parser = LegalParserService()
+        self.fraud_financial_service = FraudFinancialService()
     
     async def collect_all_sources(self, npi: str, provider_name: Optional[str] = None, specialty: Optional[str] = None, location: Optional[str] = None) -> Dict:
         """Collect data from all sources in parallel."""
@@ -175,8 +177,19 @@ class DataService:
         
         # Parse legal information from web search results
         legal_information = []
+        web_search_succeeded = (
+            web_search_data is not None 
+            and 'error' not in web_search_data 
+            and web_search_data.get('searches_performed', 0) > 0
+        )
+        
         if web_search_data and 'error' not in web_search_data:
             search_results = web_search_data.get('legal_results', [])
+            logger.info(
+                f"Data fusion: NPI {npi}, web_search_succeeded={web_search_succeeded}, "
+                f"search_results_count={len(search_results)}"
+            )
+            
             if search_results:
                 legal_information = self.legal_parser.parse_legal_information(
                     search_results,
@@ -185,6 +198,30 @@ class DataService:
                     nppes_data.get('specialty'),
                     practice_location.state
                 )
+                
+                logger.info(
+                    f"Data fusion: NPI {npi}, parsed {len(legal_information)} legal information items "
+                    f"from {len(search_results)} search results"
+                )
+                
+                # Extract and save fraud financial data from legal information
+                self._extract_and_save_fraud_financial_data(npi, legal_information)
+            else:
+                logger.warning(
+                    f"Data fusion: NPI {npi}, web search succeeded but returned 0 search results"
+                )
+        else:
+            if web_search_data and 'error' in web_search_data:
+                logger.warning(f"Data fusion: NPI {npi}, web search failed: {web_search_data.get('error')}")
+        
+        # Critical check: if web search succeeded but legal_information is empty, log warning
+        if web_search_succeeded and not legal_information:
+            search_results_count = len(web_search_data.get('legal_results', [])) if web_search_data else 0
+            logger.error(
+                f"CRITICAL: Web search succeeded for NPI {npi} but legal_information list is empty. "
+                f"Search results count: {search_results_count}. "
+                f"This may indicate a parsing or filtering issue in legal_parser_service."
+            )
         
         # Build provider profile
         profile = ProviderProfile(
@@ -208,6 +245,77 @@ class DataService:
         )
         
         return profile
+    
+    def _extract_and_save_fraud_financial_data(self, npi: str, legal_information: List[LegalInformation]):
+        """Extract fraud financial data from legal information and save it."""
+        if not legal_information:
+            return
+        
+        # Aggregate amounts from all legal cases
+        total_estimated_fraud = None
+        total_settlement = None
+        total_restitution = None
+        investigation_year = None
+        sources = []
+        notes_parts = []
+        
+        for legal_info in legal_information:
+            # Extract financial data from this legal information item
+            financial_data_dict = self.legal_parser.extract_fraud_financial_data(legal_info)
+            
+            if financial_data_dict:
+                # Aggregate amounts (take maximum if multiple found)
+                if financial_data_dict.get('estimated_fraud_amount'):
+                    if total_estimated_fraud is None or financial_data_dict['estimated_fraud_amount'] > total_estimated_fraud:
+                        total_estimated_fraud = financial_data_dict['estimated_fraud_amount']
+                
+                if financial_data_dict.get('settlement_amount'):
+                    if total_settlement is None or financial_data_dict['settlement_amount'] > total_settlement:
+                        total_settlement = financial_data_dict['settlement_amount']
+                
+                if financial_data_dict.get('restitution_amount'):
+                    if total_restitution is None or financial_data_dict['restitution_amount'] > total_restitution:
+                        total_restitution = financial_data_dict['restitution_amount']
+                
+                # Use first investigation year found
+                if investigation_year is None and financial_data_dict.get('investigation_year'):
+                    investigation_year = financial_data_dict['investigation_year']
+                
+                # Collect sources
+                if financial_data_dict.get('source'):
+                    sources.append(financial_data_dict['source'])
+                
+                # Collect notes
+                if financial_data_dict.get('notes'):
+                    notes_parts.append(financial_data_dict['notes'])
+        
+        # Only save if we found at least one amount
+        if total_estimated_fraud or total_settlement or total_restitution:
+            # Combine sources
+            source = "; ".join(set(sources)) if sources else "Legal records"
+            
+            # Combine notes
+            notes = " | ".join(notes_parts) if notes_parts else None
+            
+            # Create FraudFinancialData object
+            financial_data = FraudFinancialData(
+                estimated_fraud_amount=total_estimated_fraud,
+                settlement_amount=total_settlement,
+                restitution_amount=total_restitution,
+                investigation_year=investigation_year,
+                source=source,
+                notes=notes
+            )
+            
+            # Save to fraud financial service
+            try:
+                self.fraud_financial_service.save_financial_data(npi, financial_data)
+                logger.info(f"Saved fraud financial data for NPI {npi}: "
+                          f"fraud=${total_estimated_fraud or 0:,.0f}, "
+                          f"settlement=${total_settlement or 0:,.0f}, "
+                          f"restitution=${total_restitution or 0:,.0f}")
+            except Exception as e:
+                logger.warning(f"Failed to save fraud financial data for NPI {npi}: {e}")
     
     async def close(self):
         """Close all service connections."""
