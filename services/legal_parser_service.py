@@ -90,8 +90,14 @@ class LegalParserService:
                 
                 # CRITICAL: Remove relevance threshold entirely for convictions
                 # Convictions are too important to filter out - if classified as conviction, always include
-                # Other case types still use 0.3 threshold
-                relevance_threshold = 0.0 if case_type == "conviction" else 0.3
+                # Lower threshold for allegations (0.2) since they're important but may have lower relevance scores
+                # Lawsuits use 0.3 threshold (they're usually more specific)
+                if case_type == "conviction":
+                    relevance_threshold = 0.0
+                elif case_type == "allegation":
+                    relevance_threshold = 0.2  # Lower threshold for allegations
+                else:
+                    relevance_threshold = 0.3  # Lawsuits and other case types
                 
                 # Log each result being processed
                 logger.info(
@@ -239,9 +245,23 @@ class LegalParserService:
         if any(keyword in text_lower for keyword in conviction_keywords_in_text):
             score += 0.3  # Conviction keyword bonus
         
+        # Boost relevance for allegation-related keywords (fraud, healthcare fraud, alleged, etc.)
+        # This ensures allegations aren't filtered out due to low relevance
+        allegation_keywords_in_text = [
+            "alleged", "allegation", "fraud", "healthcare fraud", "medicare fraud",
+            "defrauded", "accused", "charges", "indictment", "under investigation",
+            "facing charges", "charged with", "healthcare", "medical fraud"
+        ]
+        if any(keyword in text_lower for keyword in allegation_keywords_in_text):
+            score += 0.2  # Allegation keyword bonus
+        
         # Check URL for conviction indicators (court case numbers, criminal, etc.)
         if any(keyword in url_lower for keyword in ["criminal", "court", "case", "conviction"]):
             score += 0.2  # URL-based conviction indicator
+        
+        # Check URL for allegation/fraud indicators
+        if any(keyword in url_lower for keyword in ["fraud", "allegation", "investigation", "doj", "fbi"]):
+            score += 0.15  # URL-based allegation indicator
         
         # Match provider name in result: +0.3
         if name_lower in text_lower:
@@ -281,6 +301,11 @@ class LegalParserService:
         # This prevents valid convictions from being filtered out
         if case_type == "conviction" and score < 0.25:
             score = 0.25  # Minimum relevance for convictions (above 0.2 threshold)
+        
+        # CRITICAL: If this is a classified allegation, ensure minimum relevance score
+        # This prevents valid allegations from being filtered out (threshold is 0.2)
+        if case_type == "allegation" and score < 0.15:
+            score = 0.15  # Minimum relevance for allegations (below 0.2 threshold but ensures inclusion)
         
         # Cap at 1.0
         return min(1.0, score)
