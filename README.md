@@ -1,226 +1,200 @@
-# 🏥 CardioGuard AI - Healthcare Fraud Detection
+# PROVIDER FRAUD CHECKR
 
-**Fast, accurate fraud risk analysis for healthcare providers**
+**AI-powered healthcare provider fraud risk analysis in under 30 seconds.**
 
-CardioGuard AI helps fraud investigators quickly identify healthcare providers with suspicious billing patterns. Get a complete fraud risk assessment in under 30 seconds.
+PROVIDER FRAUD CHECKR is a multi-agent investigation platform that analyzes healthcare providers for suspicious billing patterns, exclusion records, and legal history. It pulls from four government data sources, runs statistical anomaly detection, and generates professional investigation reports — all through a modern React interface with real-time progress streaming.
 
----
-
-## What Does It Do?
-
-CardioGuard AI analyzes healthcare providers to detect potential fraud by:
-
-1. **Collecting Data** from multiple government sources:
-   - CMS (Medicare billing patterns)
-   - OIG (exclusion and sanction database)
-   - NPPES (provider credentials and information)
-
-2. **Analyzing Patterns** to find:
-   - Unusual billing volumes compared to similar providers
-   - Suspicious billing patterns (like end-of-month clustering)
-   - Providers on exclusion lists
-   - Other fraud indicators
-
-3. **Generating Reports** with:
-   - Risk score (0-100)
-   - Evidence summary
-   - Actionable recommendations
-   - Regulatory citations
+![PROVIDER FRAUD CHECKR](provider-fraud-checkr-app.png)
 
 ---
 
-## Key Features
+## How It Works
 
-✅ **Fast Analysis** - Complete investigation in ~30 seconds  
-✅ **Comprehensive Data** - Pulls from CMS, OIG, and NPPES databases  
-✅ **Risk Scoring** - Clear 0-100 risk score with color coding  
-✅ **Evidence-Based** - Detailed findings with statistical significance  
-✅ **Professional Reports** - Export PDF reports for compliance teams  
-✅ **Cost-Effective** - Uses free public APIs, minimal operating costs  
+A 4-agent AI pipeline processes each investigation:
 
----
-
-## How to Use
-
-### Step 1: Setup (One-Time)
-
-1. **Install Python** (3.11 or higher)
-   - Download from [python.org](https://www.python.org/downloads/)
-
-2. **Get API Keys**
-   - **Anthropic API Key** (required): Get from [console.anthropic.com](https://console.anthropic.com/)
-   - **Pinecone API Key** (optional): Get from [pinecone.io](https://www.pinecone.io/)
-
-3. **Install Dependencies**
-   ```bash
-   cd CardioGuard_AI
-   source venv/bin/activate  # Activate virtual environment
-   pip install -r requirements.txt
-   ```
-
-4. **Configure API Keys**
-   - Create a `.env` file in the project root
-   - Add your API keys:
-     ```
-     ANTHROPIC_API_KEY=your_key_here
-     PINECONE_API_KEY=your_key_here  # Optional
-     PINECONE_ENVIRONMENT=your_environment  # Optional
-     ```
-
-### Step 2: Launch the App
-
-```bash
-cd CardioGuard_AI
-source venv/bin/activate
-streamlit run app.py
+```
+NPI Input --> Research Agent --> Pattern Analyzer --> Report Writer --> Quality Checker --> Report
+               (parallel          (statistical         (Claude AI        (validation
+              data collection)    anomaly detection)    summary)          & QA)
 ```
 
-The app will open in your browser at `http://localhost:8501`
+1. **Research Agent** — Collects data in parallel from CMS, OIG, NPPES, and web search
+2. **Pattern Analyzer** — Runs Z-score anomaly detection against peer baselines using scipy/sklearn
+3. **Report Writer** — Generates an executive summary and recommendations via Claude AI
+4. **Quality Checker** — Validates completeness, evidence accuracy, and regulatory compliance
 
-### Step 3: Analyze a Provider
+Total analysis time: **< 30 seconds**.
 
-1. **Enter Provider NPI**
-   - Find NPIs at [NPPES Registry](https://npiregistry.cms.hhs.gov/)
-   - Enter the 10-digit NPI number
+---
 
-2. **Click "Analyze Provider"**
-   - Wait ~30 seconds for analysis
-   - Progress indicator shows what's happening
+## Features
 
-3. **Review Results**
-   - **Risk Score**: Color-coded (🟢 Low / 🟡 Medium / 🔴 High)
-   - **Executive Summary**: High-level overview
-   - **Evidence**: Detailed findings with severity levels
-   - **Recommendations**: Next steps for investigation
+- **Real-time SSE progress** — Watch each pipeline stage complete live in the browser
+- **Risk scoring (0-100)** — Weighted multi-factor algorithm with color-coded severity gauge
+- **Evidence table** — Sortable findings with statistical significance, severity, and source attribution
+- **Data source cards** — Visual status for each API source (CMS, OIG, NPPES, web search)
+- **Severity breakdown** — Pie chart visualization of evidence by severity level
+- **Financial impact** — Estimated fraud amounts, settlements, and restitution data
+- **PDF export** — One-click professional report download for compliance teams
+- **Graceful degradation** — Continues analysis with partial data if any source is unavailable
+- **Intelligent caching** — Per-source TTLs (CMS: 24h, OIG: 30d, NPPES: 7d) for fast repeat lookups
 
-4. **Export Report**
-   - Click "Download PDF Report"
-   - Professional report ready for compliance teams
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 19, TypeScript, Vite 7, Tailwind CSS 4, shadcn/ui, Recharts |
+| **Backend** | FastAPI, Python 3.11, uvicorn, SSE (sse-starlette) |
+| **AI/ML** | Anthropic Claude Haiku (reports), scipy + scikit-learn (anomaly detection) |
+| **Data Sources** | CMS Open Data API, OIG Exclusion Database, NPPES Registry, DuckDuckGo Search |
+| **Export** | ReportLab (PDF generation) |
+| **Deployment** | Render (render.yaml) |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- [Anthropic API key](https://console.anthropic.com/)
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/achihohochi/PROVIDER_FRAUD_CHECKR.git
+cd PROVIDER_FRAUD_CHECKR
+
+# Create .env file
+echo "ANTHROPIC_API_KEY=your_key_here" > .env
+
+# Install Python dependencies
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -r app/requirements.txt
+
+# Install and build the frontend
+cd app/frontend && npm install && npm run build && cd ../..
+```
+
+### Run
+
+```bash
+source venv/bin/activate
+python -m uvicorn app.backend.main:app --port 8000
+```
+
+Open **http://localhost:8000** and enter any 10-digit NPI to begin an investigation.
+
+### Development Mode (hot reload)
+
+```bash
+# Terminal 1 — Backend
+source venv/bin/activate
+python -m uvicorn app.backend.main:app --port 8000 --reload
+
+# Terminal 2 — Frontend
+cd app/frontend && npm run dev
+```
+
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/analyze/{npi}` | Start analysis, returns job ID |
+| `GET` | `/api/analyze/{npi}/stream` | SSE stream of pipeline progress |
+| `GET` | `/api/report/{npi}` | Completed investigation report (JSON) |
+| `GET` | `/api/report/{npi}/pdf` | Download PDF report |
+| `GET` | `/api/health` | Health check |
+
+---
+
+## Data Sources
+
+| Source | Data Provided | Auth Required | Cache TTL |
+|--------|--------------|---------------|-----------|
+| **CMS Open Data** | Medicare billing patterns, utilization, charges | No | 24 hours |
+| **OIG Exclusions** | Sanctions, exclusions from federal programs | No | 30 days |
+| **NPPES Registry** | Credentials, specialty, practice location | No | 7 days |
+| **Web Search** | Legal records, court filings, news articles | No | 30 days |
+
+All data sources are free public APIs. The only paid dependency is the Anthropic API for AI-generated report summaries (~$0.01 per investigation).
 
 ---
 
 ## Understanding Risk Scores
 
-| Score Range | Priority | Meaning | Action |
-|------------|----------|---------|--------|
-| **0-29** | 🟢 Low | Normal billing patterns | Routine monitoring |
-| **30-69** | 🟡 Medium | Some anomalies detected | Further review recommended |
-| **70-100** | 🔴 High | Multiple fraud indicators | Immediate investigation |
+| Score | Priority | Meaning | Recommended Action |
+|-------|----------|---------|-------------------|
+| **0 - 29** | Low | Normal billing patterns | Routine monitoring |
+| **30 - 69** | Medium | Anomalies detected | Further review recommended |
+| **70 - 100** | High | Multiple fraud indicators | Immediate investigation |
 
 ---
 
-## What Data Sources Are Used?
+## Project Structure
 
-### CMS Open Data
-- Provider billing and utilization patterns
-- Service volumes and charges
-- Medicare participation status
-
-### OIG Exclusion Database
-- Providers excluded from Medicare/Medicaid
-- Enforcement actions and sanctions
-- Exclusion types and dates
-
-### NPPES Registry
-- Provider credentials and licenses
-- Practice locations
-- Specialty information
-
-**All data sources are free and publicly available.**
-
----
-
-## Example Output
-
-When you analyze a provider, you'll see:
-
-**Risk Score: 85/100 (High Risk)** 🔴
-
-**Executive Summary:**
-> This investigation report analyzes the fraud risk profile of Dr. John Smith (NPI: 1234567890). The analysis indicates a high risk level with a risk score of 85/100. Key findings include billing volume anomalies 340% above peer average and end-of-month billing clustering patterns...
-
-**Evidence:**
-1. **Billing Anomaly - Total Services**: Services per beneficiary is high (Z-score: 3.2, Value: 15.5)
-   - Severity: HIGH | Source: CMS
-
-2. **OIG Exclusion**: Provider is excluded from Medicare/Medicaid: Mandatory - Medicare/Medicaid conviction
-   - Severity: HIGH | Source: OIG
-
-**Recommendations:**
-1. Prioritize for immediate investigation due to high risk score
-2. Review detailed billing records for the past 12 months
-3. Conduct provider interview to address identified anomalies
-
----
-
-## Troubleshooting
-
-### "Configuration Error" Message
-- Make sure your `.env` file exists in the project root
-- Verify `ANTHROPIC_API_KEY` is set correctly
-- Restart the Streamlit app after updating `.env`
-
-### "Module not found" Errors
-- Activate your virtual environment: `source venv/bin/activate`
-- Reinstall dependencies: `pip install -r requirements.txt`
-
-### Analysis Takes Too Long
-- First run may take longer (~60 seconds) while downloading OIG data
-- Subsequent runs use cached data and are faster (~30 seconds)
-- Check your internet connection
-
-### No Results Found
-- Verify the NPI is correct (must be exactly 10 digits)
-- Some providers may have limited data in public databases
-- Try a different NPI from the NPPES registry
-
----
-
-## System Requirements
-
-- **Python**: 3.11 or higher
-- **Operating System**: macOS, Windows, or Linux
-- **Internet Connection**: Required for API access
-- **Memory**: 2GB RAM minimum
-- **Storage**: ~500MB for application and cache
-
----
-
-## Cost Information
-
-- **Development**: Free (open source)
-- **Monthly Operating Cost**: <$5 (Claude API usage)
-- **Data Sources**: 100% free (public APIs)
-- **Infrastructure**: Free (runs locally)
-
-**Estimated cost per investigation**: ~$0.01-0.05
-
----
-
-## Getting Help
-
-- **Quick Start Guide**: See `QUICKSTART.md`
-- **Run Guide**: See `RUN_GUIDE.md`
-- **Detailed Documentation**: See `docs/` folder
-- **Status Updates**: See `status_summaries.md`
+```
+PROVIDER_FRAUD_CHECKR/
+├── app/
+│   ├── frontend/              # React + TypeScript + Vite
+│   │   └── src/
+│   │       ├── pages/         # AnalyzePage (main UI)
+│   │       ├── components/    # 13 UI components (gauge, table, charts, etc.)
+│   │       ├── hooks/         # useAnalysis state management
+│   │       └── api/           # SSE client, fetch helpers
+│   └── backend/
+│       ├── main.py            # FastAPI entry point
+│       └── api/
+│           ├── routes.py      # REST endpoints
+│           └── sse.py         # Real-time progress streaming
+├── agents/
+│   ├── research_agent.py      # Parallel data collection
+│   ├── pattern_analyzer.py    # Statistical fraud detection
+│   ├── report_writer.py       # Claude AI report generation
+│   └── quality_checker.py     # Report validation & QA
+├── services/
+│   ├── cms_service.py         # CMS Open Data API
+│   ├── oig_service.py         # OIG Exclusion Database
+│   ├── nppes_service.py       # NPPES Registry API
+│   ├── web_search_service.py  # DuckDuckGo legal search
+│   ├── export_service.py      # PDF report generation
+│   └── data_service.py        # Data orchestration & fusion
+├── workflow.py                # Multi-agent pipeline orchestration
+├── models.py                  # Pydantic data models
+├── config.py                  # Environment & API configuration
+└── render.yaml                # Render deployment config
+```
 
 ---
 
 ## Privacy & Security
 
-- **No PHI Processing**: Only uses publicly available data
-- **Local Processing**: All analysis runs on your machine
-- **API Keys**: Stored securely in `.env` file (never committed to git)
-- **Data Caching**: Downloaded data cached locally for performance
+- **No PHI** — Only uses publicly available government data
+- **Local processing** — All analysis runs on your machine
+- **API keys** — Stored in `.env`, never committed to version control
+- **CORS restricted** — Limited to localhost in development
+
+---
+
+## Cost
+
+| Item | Cost |
+|------|------|
+| Data sources (CMS, OIG, NPPES) | Free |
+| Web search (DuckDuckGo) | Free |
+| Claude AI (report generation) | ~$0.01 per investigation |
+| **Estimated monthly cost** | **< $5** |
 
 ---
 
 ## License
 
-MIT License - Commercial use permitted for healthcare fraud detection applications.
-
----
-
-**Built for healthcare fraud investigators who need fast, accurate, and actionable intelligence.**
-
-*Transform healthcare fraud investigation from months to minutes.*
+MIT License
